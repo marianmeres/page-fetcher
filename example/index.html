@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, viewport-fit=cover"
+		/>
+		<title>@marianmeres/page-fetcher — example</title>
+		<meta
+			name="description"
+			content="Fetch one page and see the normalized result: redirect chain, retries, timings, charset, cache and circuit breaker."
+		/>
+		<!-- Tracks the active (manually toggled) theme; updated by main.ts. -->
+		<meta name="theme-color" content="#fafafa" />
+		<link
+			rel="icon"
+			href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2210 0 100 100%22><text y=%22.90em%22 font-size=%2290%22>🕸️</text></svg>"
+		/>
+
+		<!--
+			Styling follows @marianmeres/design-tokens with the Reboot bridge:
+			  · reboot.css — Bootstrap Reboot element normalize/reset (consumes --bs-*)
+			  · theme.css  — design-tokens "zinc" theme + reboot bridge
+			                 (sets --stuic-color-* AND the --bs-* vars; dark on :root.dark)
+			  · the inline block below — minimal, token-driven example layout
+		-->
+		<link rel="stylesheet" href="./reboot.css" />
+		<link rel="stylesheet" href="./theme.css" />
+
+		<!--
+			Anti-FOUC: set the dark class before first paint so dark-preference
+			users don't flash light. main.ts re-confirms this idempotently.
+			The storage key must match THEME_KEY in main.ts.
+		-->
+		<script>
+		try {
+			var k = "page-fetcher-example-theme";
+			var s = localStorage.getItem(k);
+			var d = s ? s === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+			document.documentElement.classList.toggle("dark", d);
+		} catch (e) {}
+		</script>
+
+		<style>
+		:root {
+			color-scheme: light;
+		}
+		:root.dark {
+			color-scheme: dark;
+		}
+
+		.app {
+			max-width: 78rem;
+			margin: 0 auto;
+			padding: clamp(1rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem);
+		}
+
+		.app-header {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 1rem;
+			margin-bottom: 1.75rem;
+		}
+		.app-header h1 {
+			margin: 0 0 0.3rem;
+			font-size: 1.05rem;
+			font-weight: 600;
+			line-height: 1.3;
+		}
+		.app-header h1 a {
+			color: inherit;
+			text-decoration: none;
+		}
+		.app-header h1 code {
+			color: inherit;
+			font-size: 0.95em;
+		}
+		.lead {
+			max-width: 68ch;
+			margin: 0;
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.9rem;
+		}
+
+		.theme-toggle {
+			flex: none;
+			width: 2.75rem;
+			height: 2.75rem;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			border: 1px solid var(--stuic-color-border);
+			border-radius: 0.5rem;
+			background: var(--stuic-color-surface);
+			color: var(--stuic-color-surface-foreground);
+			font-size: 1.1rem;
+			line-height: 1;
+			cursor: pointer;
+		}
+		.theme-toggle:hover {
+			background: var(--stuic-color-surface-hover);
+		}
+
+		/* Two columns on wide screens: controls, then the outcome. */
+		.layout {
+			display: grid;
+			grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+			gap: 1.5rem;
+			align-items: start;
+		}
+		@media (max-width: 62rem) {
+			.layout {
+				grid-template-columns: minmax(0, 1fr);
+			}
+		}
+
+		.card {
+			border: 1px solid var(--stuic-color-border);
+			border-radius: 0.7rem;
+			background: var(--stuic-color-surface);
+			color: var(--stuic-color-surface-foreground);
+			padding: 1rem 1.1rem;
+		}
+		.card + .card {
+			margin-top: 1rem;
+		}
+		.card h2 {
+			margin: 0 0 0.75rem;
+			font-size: 0.8rem;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			color: var(--stuic-color-muted-foreground);
+		}
+
+		/* ---- form ---- */
+
+		.field {
+			margin-bottom: 0.85rem;
+		}
+		.field:last-child {
+			margin-bottom: 0;
+		}
+		.field > label {
+			display: block;
+			margin-bottom: 0.3rem;
+			font-size: 0.78rem;
+			font-weight: 500;
+			color: var(--stuic-color-muted-foreground);
+		}
+		/* 1rem (16px) font keeps iOS Safari from zooming in on focus. */
+		input[type="text"],
+		input[type="number"],
+		select {
+			width: 100%;
+			font: inherit;
+			font-size: 1rem;
+			min-height: 2.6rem;
+			padding: 0.45rem 0.6rem;
+			border: 1px solid var(--stuic-color-border);
+			border-radius: 0.5rem;
+			background: var(--stuic-color-input);
+			color: var(--stuic-color-foreground);
+		}
+		input[type="text"] {
+			font-family: var(--bs-font-monospace);
+			font-size: 0.85rem;
+		}
+		input::placeholder {
+			color: var(--stuic-color-muted-foreground);
+		}
+
+		.grid-2 {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.6rem 0.75rem;
+		}
+
+		.switch {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			min-height: 2rem;
+			font-size: 0.82rem;
+			cursor: pointer;
+			user-select: none;
+		}
+		.switch input {
+			width: 1.05rem;
+			height: 1.05rem;
+			flex: none;
+			accent-color: var(--stuic-color-primary);
+			cursor: pointer;
+		}
+
+		.hint {
+			margin: 0.6rem 0 0;
+			padding: 0.6rem 0.7rem;
+			border-radius: 0.5rem;
+			background: var(--stuic-color-muted);
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.78rem;
+			line-height: 1.5;
+		}
+
+		.actions {
+			display: flex;
+			gap: 0.6rem;
+			margin-top: 1rem;
+		}
+		button.btn {
+			font: inherit;
+			font-size: 0.85rem;
+			min-height: 2.6rem;
+			padding: 0 1rem;
+			border-radius: 0.5rem;
+			border: 1px solid var(--stuic-color-border);
+			background: var(--stuic-color-surface);
+			color: var(--stuic-color-surface-foreground);
+			cursor: pointer;
+		}
+		button.btn:hover:not(:disabled) {
+			background: var(--stuic-color-surface-hover);
+		}
+		button.btn-primary {
+			flex: 1;
+			border-color: transparent;
+			background: var(--stuic-color-primary);
+			color: var(--stuic-color-primary-foreground);
+			font-weight: 500;
+		}
+		button.btn-primary:hover:not(:disabled) {
+			opacity: 0.9;
+			background: var(--stuic-color-primary);
+		}
+		button.btn:disabled {
+			opacity: 0.55;
+			cursor: not-allowed;
+		}
+
+		/* ---- outcome ---- */
+
+		.outcome-head {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.5rem;
+			margin-bottom: 0.9rem;
+		}
+		.status-code {
+			font-size: 1.35rem;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+		}
+		.status-text {
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.9rem;
+		}
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			padding: 0.15rem 0.5rem;
+			border-radius: 999px;
+			border: 1px solid var(--stuic-color-border);
+			font-size: 0.72rem;
+			font-weight: 500;
+			white-space: nowrap;
+		}
+		.badge-ok {
+			border-color: transparent;
+			background: var(--stuic-color-success, #16a34a);
+			color: #fff;
+		}
+		.badge-warn {
+			border-color: transparent;
+			background: var(--stuic-color-warning, #d97706);
+			color: #fff;
+		}
+		.badge-bad {
+			border-color: transparent;
+			background: var(--stuic-color-destructive);
+			color: var(--stuic-color-destructive-foreground, #fff);
+		}
+
+		dl.kv {
+			display: grid;
+			grid-template-columns: minmax(6.5rem, auto) minmax(0, 1fr);
+			gap: 0.35rem 0.9rem;
+			margin: 0;
+			font-size: 0.82rem;
+		}
+		dl.kv dt {
+			color: var(--stuic-color-muted-foreground);
+			font-weight: 400;
+		}
+		dl.kv dd {
+			margin: 0;
+			overflow-wrap: anywhere;
+			font-family: var(--bs-font-monospace);
+			font-size: 0.78rem;
+		}
+		/* the redirect chain is one hop per line */
+		dl.kv dd[data-ref="redirects"] {
+			white-space: pre-line;
+		}
+
+		ol.timeline {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: grid;
+			gap: 0.35rem;
+			font-size: 0.8rem;
+		}
+		ol.timeline li {
+			display: grid;
+			grid-template-columns: 3.5rem 6.5rem minmax(0, 1fr);
+			gap: 0.6rem;
+			align-items: baseline;
+		}
+		.ev-at {
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.75rem;
+		}
+		.ev-type {
+			font-size: 0.72rem;
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+		}
+		.ev-request .ev-type {
+			color: var(--stuic-color-muted-foreground);
+		}
+		.ev-retry .ev-type,
+		.ev-circuit-open .ev-type {
+			color: var(--stuic-color-warning, #d97706);
+		}
+		.ev-error .ev-type {
+			color: var(--stuic-color-destructive);
+		}
+		.ev-text {
+			overflow-wrap: anywhere;
+			font-family: var(--bs-font-monospace);
+			font-size: 0.76rem;
+		}
+
+		details.raw {
+			margin-top: 0.9rem;
+			border-top: 1px solid var(--stuic-color-border);
+			padding-top: 0.7rem;
+		}
+		details.raw + details.raw {
+			margin-top: 0.7rem;
+		}
+		details.raw > summary {
+			cursor: pointer;
+			font-size: 0.78rem;
+			color: var(--stuic-color-muted-foreground);
+		}
+		pre.body {
+			margin: 0.6rem 0 0;
+			max-height: 22rem;
+			overflow: auto;
+			padding: 0.7rem;
+			border-radius: 0.5rem;
+			background: var(--stuic-color-muted);
+			font-size: 0.76rem;
+			line-height: 1.5;
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
+		/* the result block that follows an error block (throwOnHttpError) */
+		.stacked {
+			margin-top: 1.1rem;
+			padding-top: 1rem;
+			border-top: 1px solid var(--stuic-color-border);
+		}
+		.error-kind {
+			font-family: var(--bs-font-monospace);
+			font-weight: 600;
+			color: var(--stuic-color-destructive);
+		}
+		.error-message {
+			margin: 0.4rem 0 0.8rem;
+			font-size: 0.85rem;
+			overflow-wrap: anywhere;
+		}
+
+		.placeholder {
+			margin: 0;
+			padding: 2.5rem 1rem;
+			text-align: center;
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.85rem;
+		}
+
+		.info {
+			margin: 1.5rem 0 0;
+			padding-top: 0.85rem;
+			border-top: 1px solid var(--stuic-color-border);
+			color: var(--stuic-color-muted-foreground);
+			font-size: 0.8rem;
+			line-height: 1.6;
+		}
+		.info a {
+			color: inherit;
+			text-decoration: underline;
+		}
+		.info code {
+			font-size: 0.95em;
+			color: inherit;
+		}
+
+		:where(input, select, button, summary):focus-visible {
+			outline: 2px solid var(--stuic-color-primary);
+			outline-offset: 2px;
+		}
+		</style>
+	</head>
+	<body>
+		<!-- The whole UI lives in templates; main.ts clones and wires them. -->
+		<template id="tpl-app">
+			<div class="app">
+				<header class="app-header">
+					<div>
+						<h1>
+							<a href="https://github.com/marianmeres/page-fetcher">
+								<code>@marianmeres/page-fetcher</code>
+							</a>
+						</h1>
+						<p class="lead">
+							Fetch one page, see the normalized result — redirect chain,
+							attempts, timings, charset, cache and circuit breaker. The
+							fetch runs on this local Deno server (a browser cannot
+							observe redirect chains); the demo pages below misbehave on
+							purpose.
+						</p>
+					</div>
+					<button
+						type="button"
+						class="theme-toggle"
+						data-on="click:toggleTheme"
+						aria-label="Toggle dark mode"
+						title="Toggle dark mode"
+					>◐</button>
+				</header>
+
+				<div class="layout">
+					<!-- ---- controls ---- -->
+					<form class="card" data-ref="form" data-on="submit:submit">
+						<h2>Request</h2>
+
+						<div class="field">
+							<label for="scenario">Demo page</label>
+							<select id="scenario" data-ref="scenario"
+								data-on="change:pickScenario"></select>
+						</div>
+
+						<div class="field">
+							<label for="url">URL</label>
+							<input
+								type="text"
+								id="url"
+								data-ref="url"
+								data-on="input:editUrl"
+								autocomplete="off"
+								autocapitalize="off"
+								autocorrect="off"
+								spellcheck="false"
+								placeholder="https://example.com/"
+							/>
+						</div>
+
+						<p class="hint" data-ref="hint"></p>
+
+						<h2 style="margin-top: 1.25rem">Options</h2>
+
+						<div class="grid-2">
+							<div class="field">
+								<label for="method">Method</label>
+								<select id="method" data-ref="method">
+									<option value="GET">GET</option>
+									<option value="HEAD">HEAD</option>
+								</select>
+							</div>
+							<div class="field">
+								<label for="attempts">Retry attempts</label>
+								<input
+									type="number"
+									id="attempts"
+									data-ref="attempts"
+									min="1"
+									max="5"
+									step="1"
+									value="3"
+								/>
+							</div>
+							<div class="field">
+								<label for="timeout">Timeout / attempt (ms)</label>
+								<input
+									type="number"
+									id="timeout"
+									data-ref="timeout"
+									min="0"
+									step="100"
+									placeholder="none"
+								/>
+							</div>
+							<div class="field">
+								<label for="deadline">Total deadline (ms)</label>
+								<input
+									type="number"
+									id="deadline"
+									data-ref="deadline"
+									min="0"
+									step="100"
+									placeholder="none"
+								/>
+							</div>
+							<div class="field">
+								<label for="maxBytes">Max body bytes</label>
+								<input
+									type="number"
+									id="maxBytes"
+									data-ref="maxBytes"
+									min="1024"
+									step="1024"
+									value="1000000"
+								/>
+							</div>
+							<div class="field">
+								<label for="cache">Cache mode</label>
+								<select id="cache" data-ref="cache">
+									<option value="off">off</option>
+									<option value="conditional">conditional</option>
+									<option value="dev">dev</option>
+								</select>
+							</div>
+						</div>
+
+						<label class="switch">
+							<input type="checkbox" data-ref="retainBody" checked />
+							<span>Retain body <em>(off = link-check mode)</em></span>
+						</label>
+						<label class="switch">
+							<input type="checkbox" data-ref="circuitBreaker" />
+							<span>Circuit breaker <em>(3 failures / 15 s)</em></span>
+						</label>
+						<label class="switch">
+							<input type="checkbox" data-ref="throwOnHttpError" />
+							<span>Throw on HTTP error</span>
+						</label>
+
+						<div class="actions">
+							<button type="submit" class="btn btn-primary"
+								data-ref="fetchBtn">
+								Fetch
+							</button>
+							<button
+								type="button"
+								class="btn"
+								data-on="click:reset"
+								title="Clear the cache, breaker state and demo counters"
+							>Reset state</button>
+						</div>
+					</form>
+
+					<!-- ---- outcome ---- -->
+					<div>
+						<div class="card" data-ref="outcome">
+							<h2>Result</h2>
+							<p class="placeholder" data-ref="placeholder">
+								Pick a demo page and hit <strong>Fetch</strong>.
+							</p>
+							<div data-ref="outcomeBody" hidden></div>
+						</div>
+					</div>
+				</div>
+
+				<footer class="info">
+					Everything here runs locally: the app is
+					<code>@marianmeres/vanilla</code> + <code>@marianmeres/design-tokens</code>,
+					bundled with <code>@marianmeres/deno-build</code>; the fetches happen in
+					<code>example/server.ts</code>.
+					<a href="https://jsr.io/@marianmeres/page-fetcher">JSR</a> ·
+					<a href="https://github.com/marianmeres/page-fetcher/blob/master/API.md">API</a>
+					<span data-ref="version"></span>
+				</footer>
+			</div>
+		</template>
+
+		<!-- One successful (or at least completed) fetch. -->
+		<template id="tpl-result">
+			<div>
+				<div class="outcome-head">
+					<span class="status-code" data-ref="status"></span>
+					<span class="status-text" data-ref="statusText"></span>
+					<span class="badge" data-ref="okBadge"></span>
+					<span class="badge" data-ref="cacheBadge" hidden></span>
+					<span class="badge" data-ref="attemptsBadge"></span>
+				</div>
+
+				<dl class="kv">
+					<dt>final URL</dt>
+					<dd data-ref="finalUrl"></dd>
+					<dt data-ref="redirectsLabel">redirects</dt>
+					<dd data-ref="redirects"></dd>
+					<dt>content type</dt>
+					<dd data-ref="contentType"></dd>
+					<dt>charset</dt>
+					<dd data-ref="charset"></dd>
+					<dt>body</dt>
+					<dd data-ref="size"></dd>
+					<dt>timing</dt>
+					<dd data-ref="timing"></dd>
+					<dt>adapter</dt>
+					<dd data-ref="adapter"></dd>
+					<dt>requestId</dt>
+					<dd data-ref="requestId"></dd>
+				</dl>
+
+				<details class="raw" data-ref="eventsWrap">
+					<summary>Events emitted (<span data-ref="eventsCount"></span>)</summary>
+					<ol class="timeline" data-ref="events"
+						style="margin-top: 0.6rem"></ol>
+				</details>
+
+				<details class="raw" data-ref="headersWrap">
+					<summary>Response headers</summary>
+					<dl class="kv" data-ref="headers" style="margin-top: 0.6rem"></dl>
+				</details>
+
+				<details class="raw" data-ref="bodyWrap">
+					<summary>Body <span data-ref="bodyNote"></span></summary>
+					<pre class="body" data-ref="body"></pre>
+				</details>
+			</div>
+		</template>
+
+		<!-- A thrown PageFetchError. -->
+		<template id="tpl-error">
+			<div>
+				<div class="outcome-head">
+					<span class="badge badge-bad">threw</span>
+					<span class="error-kind" data-ref="kind"></span>
+					<span class="badge" data-ref="retryable"></span>
+					<span class="badge" data-ref="attempts"></span>
+				</div>
+				<p class="error-message" data-ref="message"></p>
+				<dl class="kv" data-ref="details"></dl>
+			</div>
+		</template>
+
+		<!-- The events section on its own, when there is no result to attach it to. -->
+		<template id="tpl-events">
+			<details class="raw" open>
+				<summary>Events emitted (<span data-ref="eventsCount"></span>)</summary>
+				<ol class="timeline" data-ref="events" style="margin-top: 0.6rem"></ol>
+			</details>
+		</template>
+
+		<template id="tpl-event">
+			<li>
+				<span class="ev-at" data-ref="at"></span>
+				<span class="ev-type" data-ref="type"></span>
+				<span class="ev-text" data-ref="text"></span>
+			</li>
+		</template>
+
+		<template id="tpl-kv">
+			<div style="display: contents">
+				<dt data-ref="k"></dt>
+				<dd data-ref="v"></dd>
+			</div>
+		</template>
+
+		<div id="app"></div>
+
+		<script type="module" src="./dist/bundle.js"></script>
+	</body>
+</html>

@@ -125,3 +125,4 @@ members, validating the shape at call time.
 | What is the driver contract?    | `src/adapters/browser/driver.ts`          |
 | What is stored in the cache?    | `src/cache/types.ts` (`CachedEntry`)      |
 | Why is it like this?            | `docs/design.md`, `docs/plan/PROGRESS.md` |
+| What does it look like in use?  | `example/` (`deno task example`)          |

@@ -15,6 +15,8 @@ recursion, sites or crawling.
   type-checks the code inside every `@example`.
 - **Build**: `deno task npm:build` (runs `tsc`, which is stricter than `deno check`).
 - **Format/lint**: `deno fmt` / `deno lint`. Tabs, `lineWidth: 90`.
+- **Example app**: `deno task example` (a local Deno server at :8000 — the demo pages and
+  the fetch endpoint), `deno task example:build` after editing `example/src/`.
 
 ## Project Structure
 
@@ -28,6 +30,10 @@ src/cache/        — internals: types, key, memory, layer, serialize
 tests/            — one file per module; unit files must not import the fixture server
 tests/fixtures/   — server.ts (dual-origin local HTTP), fake-driver.ts, bytes.ts
 tests/browser/    — flagged real-browser suite (double gate: --ignore + BROWSER_TESTS=1)
+example/          — the interactive example: server.ts (static + /demo/* + /api/fetch),
+                    index.html (templates + token-driven CSS), src/main.ts (vanilla app),
+                    dist/bundle.js (committed, built by deno-build)
+scripts/          — build-npm.ts, gen-example-{version,theme}.ts
 docs/plan/        — the implementation plan and its decisions log
 ```
 
@@ -71,5 +77,7 @@ Barrels are flat and stay in sync with `deno.json` `exports` **and**
 - [Conventions](./docs/conventions.md) — Do/Don't pairs for code and tests
 - [Tasks](./docs/tasks.md) — add an adapter, a cache store, a fixture route, a layer
 - [Design](./docs/design.md) — the founding design document
+- [Example](./example/README.md) — what the demo pages prove, and why the fetch runs
+  server-side rather than in the page
 - [Implementation plan](./docs/plan/PROGRESS.md) — status and the full decisions log
   (read this before re-litigating a design call; it records what was decided and why)

@@ -91,6 +91,25 @@ try {
 
 The full kind table is in [API.md](API.md#pagefetcherrorkind).
 
+## Try it: the interactive example
+
+```bash
+git clone https://github.com/marianmeres/page-fetcher && cd page-fetcher
+deno task example        # → http://127.0.0.1:8000
+```
+
+A control panel for one fetch. Pick a deliberately misbehaving page — a three-hop
+redirect chain, a redirect loop, a 503, a flaky endpoint that fails twice, a `429` with
+`Retry-After: 2`, a slow page, a 5 MB body, a windows-1250 page, an ETag'd page, an
+image — or paste any URL, set the options, and watch what comes back: the recorded
+redirect chain, the attempts actually made, the resolved charset, the timings, the cache
+verdict, and every event the layer stack emitted, in order.
+
+The fetch runs in the example's own Deno server rather than in the page, because a
+browser cannot demo this honestly: CORS blocks cross-origin fetches, and
+`redirect: "manual"` yields an _opaque_ response there — so the redirect chain would
+always come back empty. See [example/README.md](example/README.md).
+
 ## Fetching with a real browser
 
 Install a driver yourself, then inject it. The adapter imports neither package — the
@@ -335,7 +354,8 @@ each layer sits where it does.
 See [API.md](API.md) for the complete reference — every function, type and constant of
 the three entry points (`.`, `./adapters`, `./cache`).
 
-Further reading: [docs/architecture.md](docs/architecture.md) (the layer stack and data
+Further reading: [example/README.md](example/README.md) (the interactive example),
+[docs/architecture.md](docs/architecture.md) (the layer stack and data
 flow), [docs/design.md](docs/design.md) (the founding design document and the accepted
 deviations from it), [AGENTS.md](AGENTS.md) (for AI agents working on this package).
 

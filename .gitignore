@@ -6,4 +6,4 @@ tmp/*
 .env
 .env.*
 !.env.example
-
+example/src/version.generated.ts

@@ -174,6 +174,29 @@ const store: CacheStore = {
 - [ ] No unbounded delay without the kill switch.
 - [ ] Token-keyed if it counts anything.
 
+## Add a demo scenario to the example
+
+### Steps
+
+1. Add a `case` to the `switch (true)` in `example/server.ts` under `/demo/…`. Keep it
+   self-contained — the example must never import `tests/fixtures/`, which is not
+   published and not part of the example's build.
+2. For a stateful route (fails N times, then succeeds), key the counter on the
+   caller-supplied `?token=` via `bump(key)`, and mark the scenario `fresh: true` so the
+   app mints a new token per run; otherwise it only demos once.
+3. For any delay, use `delay(ms, req.signal)` so a closed tab does not hold the handler.
+4. Add the matching entry to `SCENARIOS` in `example/src/main.ts`: `label`, `path`,
+   a `hint` saying **what to watch for**, and `apply` for the options that make the point
+   visible (a `timeout` for a slow page, a `maxBytes` for a large one).
+5. `deno task example:build`, then `deno task example` and click it.
+
+### Checklist
+
+- [ ] The scenario proves one specific behavior, and the hint names it.
+- [ ] Stateful routes are token-keyed **and** marked `fresh`.
+- [ ] Nothing in `example/` imports from `tests/`.
+- [ ] The bundle is rebuilt and committed (`example/dist/bundle.js`).
+
 ## Add a browser capability
 
 ### Steps
