@@ -3,11 +3,11 @@ Promoted from `tmp/page-fetcher-DESIGN.md` on 2026-08-23 (tmp/ is gitignored, so
 founding document would otherwise never enter the repo's history).
 
 The sketch below is preserved verbatim as a record of *intent*. It is NOT a description
-of what was built — see `docs/architecture.md` for that, and `docs/plan/` for the
+of what was built — see `docs/architecture.md` for that, and `docs/_archive/plan/` for the
 implementation analysis. Where the implementation knowingly departs from the sketch, the
 deviation is listed under "Accepted deviations" immediately below. That list is complete
 as of v1 — every plan task has been executed and its calls recorded in the decisions log
-of `docs/plan/PROGRESS.md`, which is where the reasoning lives in full.
+of `docs/_archive/plan/PROGRESS.md`, which is where the reasoning lives in full.
 -->
 
 # Accepted deviations from this sketch

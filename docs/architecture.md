@@ -49,7 +49,7 @@ Outermost first, as wired by `createFetcher`:
 ```
 
 Placement is a contract, not a preference. Each layer's module JSDoc states why it sits
-where it does; `docs/plan/PROGRESS.md` decision 24 records the ordering call in full.
+where it does; `docs/_archive/plan/PROGRESS.md` decision 24 records the ordering call in full.
 
 ## Component map
 
@@ -117,12 +117,12 @@ members, validating the shape at call time.
 
 ## Key files
 
-| Question                        | File                                      |
-| ------------------------------- | ----------------------------------------- |
-| What does a result look like?   | `src/types.ts` (`FetchResult`)            |
-| What can go wrong?              | `src/errors.ts` (`PageFetchErrorKind`)    |
-| How is the default stack wired? | `src/fetcher.ts`                          |
-| What is the driver contract?    | `src/adapters/browser/driver.ts`          |
-| What is stored in the cache?    | `src/cache/types.ts` (`CachedEntry`)      |
-| Why is it like this?            | `docs/design.md`, `docs/plan/PROGRESS.md` |
-| What does it look like in use?  | `example/` (`deno task example`)          |
+| Question                        | File                                               |
+| ------------------------------- | -------------------------------------------------- |
+| What does a result look like?   | `src/types.ts` (`FetchResult`)                     |
+| What can go wrong?              | `src/errors.ts` (`PageFetchErrorKind`)             |
+| How is the default stack wired? | `src/fetcher.ts`                                   |
+| What is the driver contract?    | `src/adapters/browser/driver.ts`                   |
+| What is stored in the cache?    | `src/cache/types.ts` (`CachedEntry`)               |
+| Why is it like this?            | `docs/design.md`, `docs/_archive/plan/PROGRESS.md` |
+| What does it look like in use?  | `example/` (`deno task example`)                   |

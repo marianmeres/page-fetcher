@@ -34,7 +34,7 @@ example/          — the interactive example: server.ts (static + /demo/* + /ap
                     index.html (templates + token-driven CSS), src/main.ts (vanilla app),
                     dist/bundle.js (committed, built by deno-build)
 scripts/          — build-npm.ts, gen-example-{version,theme}.ts
-docs/plan/        — the implementation plan and its decisions log
+docs/_archive/plan/ — the original implementation plan and its decisions log
 ```
 
 Barrels are flat and stay in sync with `deno.json` `exports` **and**
@@ -79,5 +79,5 @@ Barrels are flat and stay in sync with `deno.json` `exports` **and**
 - [Design](./docs/design.md) — the founding design document
 - [Example](./example/README.md) — what the demo pages prove, and why the fetch runs
   server-side rather than in the page
-- [Implementation plan](./docs/plan/PROGRESS.md) — status and the full decisions log
+- [Implementation plan](./docs/_archive/plan/PROGRESS.md) — status and the full decisions log
   (read this before re-litigating a design call; it records what was decided and why)

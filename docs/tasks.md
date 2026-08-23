@@ -111,7 +111,8 @@ export function createThingAdapter(options: ThingAdapterOptions = {}): Adapter {
 
 - [ ] Emits nothing the events contract does not assign to it (see `src/events.ts`).
 - [ ] Its unit test uses stub `FetchFn`s from `tests/helpers.ts` and opens no socket.
-- [ ] Record the placement decision in `docs/plan/PROGRESS.md`.
+- [ ] Its module JSDoc states why it sits where it does (the original ordering
+      calls are recorded in `docs/_archive/plan/PROGRESS.md`).
 
 ## Add a cache store
 
