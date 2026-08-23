@@ -19,6 +19,12 @@
  * never touched the network and deliberately emits nothing but `onCircuitOpen` at the
  * transition, so an open circuit under load cannot turn into an event storm.
  *
+ * It sits below the **cache** for the same reason, and that has a consequence callers
+ * must know about: a request the cache answers by itself never reaches this layer, so it
+ * emits nothing — and a 304 revalidation emits `onResponse` with the raw 304, even though
+ * the caller receives the synthesized stored result. `FetchResult.fromCache` is the
+ * reliable way to count hits.
+ *
  * @module
  */
 

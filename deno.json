@@ -6,6 +6,9 @@
 		"./adapters": "./src/adapters.ts",
 		"./cache": "./src/cache.ts"
 	},
+	"publish": {
+		"exclude": [".*", "tests/**"]
+	},
 	"tasks": {
 		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser tests/",
 		"test:watch": "deno test --watch --allow-net=127.0.0.1 --ignore=tests/browser tests/",

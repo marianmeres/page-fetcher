@@ -60,7 +60,7 @@ browser subsystem, and the cache — see the backlog.
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ✅     |
 | 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ✅     |
 | 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ✅     |
-| 17   | Pre-release checks (NO publish without explicit owner green-light): PRE_RELEASE_DOCS_UPDATE checklist, `deno publish --dry-run`, scratch-dir `npm i` smoke of the three subpath imports under Node                                                                                      | [06](./06-testing-docs-tooling.md) #12                                                      | ⬜     |
+| 17   | Pre-release checks (NO publish without explicit owner green-light): PRE_RELEASE_DOCS_UPDATE checklist, `deno publish --dry-run`, scratch-dir `npm i` smoke of the three subpath imports under Node                                                                                      | [06](./06-testing-docs-tooling.md) #12                                                      | ✅     |
 
 ---
 
@@ -611,6 +611,55 @@ browser subsystem, and the cache — see the backlog.
   69. **The sketch body is verified byte-identical to `tmp/page-fetcher-DESIGN.md`** after
       `deno fmt` normalization — the promoted copy is formatted, never edited, which is
       what makes it usable as evidence of intent. The `tmp/` original stays as scratch.
+
+- **2026-08-23 (backlog task 17 — pre-release checks)** — the checklist was run end to
+  end. **Nothing was published**: version stays `0.1.0`, there are no tags, and the
+  `release` / `publish` / `rp` / `rpm` tasks are untouched, awaiting an explicit
+  green-light. Green on this machine (Deno 2.9.5, Node v26.7.0, npm 11.19.0): `deno lint`,
+  `deno fmt --check`, `deno task test` (203 / 102 steps), `deno task test:browser` (10,
+  Playwright, 6 s), `deno task test:browser:puppeteer` (10, 19 s), `deno task doc:lint`,
+  `deno publish --dry-run`, `deno task npm:build` (`tsc` clean).
+
+  70. **`publish.exclude` added — `[".*", "tests/**"]`** (the open question the plan left
+      for this task; [demino](/Users/mm/projects/@marianmeres/demino/deno.json) is the
+      ecosystem precedent). The JSR tarball drops from 74 files to 51: out go the dotfiles
+      and ~230 KB of `tests/`, including the two files that dynamically import
+      `npm:playwright` / `npm:puppeteer`. `docs/` **stays in** — documentation ships in
+      this ecosystem, and for a package whose whole surface is a composition contract, the
+      decisions log _is_ the "why" that a reader browsing the source on JSR wants.
+  71. **Finding, fixed here: cache hits are invisible to the events layer.** The Node
+      smoke test showed `onResponse` firing with status **304** on a revalidated request,
+      and a probe then confirmed a pure hit emits _nothing at all_ — no `onRequest`, no
+      terminal event. That follows directly from decisions 24 and 50 (cache outermost,
+      events below it), so the behavior is right; the docs were wrong, having stated
+      "exactly one terminal event per logical request" without the caveat in four places
+      (`types.ts`, `events.ts`, `README.md`, `API.md`). All four now say it, and
+      `tests/fetcher.test.ts` pins both halves. **Left for the owner:** if the crawler
+      wants hit accounting through `events`, the additive fix is a new `onCacheHit` event
+      — _not_ moving the layer, since events above the cache would also sit above the
+      breaker and start emitting `onError` for local refusals, which decision 24
+      deliberately rejected.
+  72. **Two exports were missing from `API.md`** (`CharsetSource`, `DEFAULT_MAX_ENTRIES`),
+      found by diffing `deno doc --json` over the three barrels against the reference
+      text. Both documented; the diff now reports zero. Worth re-running whenever the
+      public surface changes — it is one command and it caught a gap a careful read had
+      already missed twice.
+  73. **The npm artifact was verified by installing it, not by reading it.** `npm pack` →
+      scratch project → `npm i` the tarball → a Node script that drives the real stack
+      against a `node:http` server: redirect chain, a genuine 304 revalidation through the
+      cache (stored status returned, never 304), a 404 as data, the `throwOnHttpError`
+      path, the default UA actually on the wire, and the serialize/deserialize round-trip.
+      Then `tsc -p` (NodeNext, `strict`) over a consumer file importing all three
+      subpaths. That last step is the concrete proof of decision 2: the emitted `.d.ts`
+      references clog's `Logger`, and a consumer's `tsc` resolves it precisely because
+      clog is declared as a real dependency. `API.md` is in the npm `files` list from this
+      build onward (npmbuild's default `rootFiles`).
+
+  Checklist items that cannot be verified before a first release, and why that is fine:
+  the README's `deno add jsr:@marianmeres/page-fetcher` / `npm i` lines resolve only once
+  the package exists on those registries (the tarball install above is the closest
+  available proxy), and "changes since the last release" is the whole history, since there
+  has never been one.
 
 ## How to resume (for a fresh conversation)
 

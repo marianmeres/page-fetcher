@@ -202,11 +202,21 @@ Follow [PRE_RELEASE_DOCS_UPDATE.md](/Users/mm/projects/@marianmeres/agents/mm-lo
 then:
 
 ```
-deno task test && deno task test:browser
+deno task test && deno task test:browser && deno task test:browser:puppeteer
 deno lint && deno fmt --check && deno task doc:lint
-deno publish --dry-run
+deno publish --dry-run  # also: read the file list, `publish.exclude` keeps tests out
 deno task npm:build     # runs tsc, which is stricter than deno check
 ```
+
+Two checks that are not tasks yet, and are worth the five minutes:
+
+- **Nothing undocumented ships.** Diff `deno doc --json src/mod.ts src/adapters.ts
+  src/cache.ts` against `API.md` — every exported symbol name must appear there. It has
+  caught gaps twice.
+- **Install the npm artifact, do not just read it.** `cd .npm-dist && npm pack`, install
+  the tarball in a scratch project, import all three subpaths from a `.mjs` script and
+  run one real fetch, then `tsc --strict` (NodeNext) over a consumer file. That last step
+  is what proves a consumer can resolve clog's `Logger` out of our `.d.ts`.
 
 Publishing is `deno task rp` / `deno task rpm`. **Never publish without an explicit
 green-light from the owner** — a JSR/npm release is irreversible.

@@ -580,6 +580,14 @@ handler never affects the fetch (it is reported via `logger.warn`). Refusals by 
 circuit emit nothing — an open circuit under load would otherwise be an event storm, and
 the caller already has the rejection in hand.
 
+Two placement consequences to know before you count anything with these. Refusals by an
+open circuit emit nothing but the `onCircuitOpen` transition — the breaker sits above the
+events layer, an open circuit under load would otherwise be an event storm, and the caller
+already has the rejection in hand. And the **cache** sits above the events layer too, so a
+request the cache answers by itself emits nothing at all, while a 304 revalidation emits
+`onResponse` with the raw 304 the origin sent (the caller still receives the synthesized
+stored result). Count hits off `FetchResult.fromCache`, not off the event stream.
+
 ### `ObservabilityOptions`
 
 ```ts
@@ -1453,6 +1461,9 @@ interface SniffCharsetOptions {
 
 **Returns:** `string` — the resolved label
 
+`CharsetSource` — `"bom" | "header" | "meta" | "fallback"` — names where a winning label
+came from; it is what the debug logging and a custom sniffer report.
+
 ### `detectBom()` / `sniffMetaCharset()` / `isSupportedEncoding()`
 
 - `detectBom(bytes)` → `string | undefined` — the label a UTF-8/16 BOM implies
@@ -1606,6 +1617,10 @@ Enabling this layer forces full body retention in memory for every cacheable res
 because storing an entry means reading the bytes. That is inherent to caching, not a
 defect.
 
+Being outermost also means the layer sits **above** the events layer: a pure hit emits no
+`onRequest`/`onResponse` at all, and a 304 revalidation emits `onResponse` with the raw
+304 rather than the synthesized result. See [`FetcherEvents`](#fetcherevents).
+
 ### `CacheLayerOptions`
 
 ```ts
@@ -1734,6 +1749,7 @@ interface MemoryCacheOptions {
 ```
 
 **Returns:** `MemoryCache` — a `CacheStore` plus `readonly size: number` and `clear()`
+(`DEFAULT_MAX_ENTRIES` is `1000`)
 
 **Throws:** `TypeError` when `maxEntries < 1`.
 

@@ -289,6 +289,10 @@ one terminal event — `onResponse` **or** `onError`. Every event, result and er
 carries the same `requestId`, so log lines correlate. A throwing handler never affects
 the fetch.
 
+The events layer sits below the cache and the circuit breaker, which is visible in two
+places: a request answered from the cache emits nothing (count hits off
+`res.fromCache`), and a request refused by an open circuit emits only `onCircuitOpen`.
+
 ## The default User-Agent
 
 The HTTP adapter announces itself as

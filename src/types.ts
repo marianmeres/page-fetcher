@@ -256,6 +256,12 @@ export type RetryInfo = {
  * Granularity is defined per event. For a logical request with N attempts, handlers see
  * N × `onRequest`, (N−1) × `onRetry`, and exactly one terminal event
  * (`onResponse` or `onError`).
+ *
+ * One placement consequence, worth knowing before you count anything with these: the
+ * events layer sits **below** the cache, so a request the cache answers by itself emits
+ * nothing at all, and a 304 revalidation emits `onResponse` with the raw 304 the origin
+ * sent — while the caller receives the synthesized stored result. Count cache hits off
+ * `FetchResult.fromCache`, not off the event stream.
  */
 export interface FetcherEvents {
 	/** PER ATTEMPT — before each attempt's I/O, including attempt 1. */

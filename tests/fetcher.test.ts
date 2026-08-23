@@ -7,6 +7,7 @@ import { createFetcher } from "../src/fetcher.ts";
 import { compose } from "../src/compose.ts";
 import { PageFetchError } from "../src/errors.ts";
 import { createHttpAdapter, DEFAULT_USER_AGENT } from "../src/adapters/http.ts";
+import { createMemoryCache } from "../src/cache.ts";
 import type {
 	Adapter,
 	FetcherEvents,
@@ -177,6 +178,46 @@ Deno.test("the breaker is off by default and opt-in-able; its refusals stay sile
 		"error:network",
 		"circuit-open:stub.test",
 	]);
+});
+
+Deno.test("the cache sits above events: a hit is silent, a 304 reports the 304", async () => {
+	const store = createMemoryCache();
+	const { events, log } = recordEvents();
+	const adapter = stubAdapter("stub", [
+		makeResult({ url: URL_, headers: { etag: '"v1"' } }),
+	]);
+	const fetcher = createFetcher({
+		adapters: adapter,
+		retry: false,
+		cache: { store, mode: "dev" },
+		events,
+	});
+
+	await fetcher.fetch(URL_);
+	const hit = await fetcher.fetch(URL_);
+	assert(hit.fromCache);
+	assertEquals(hit.attempts, 0);
+	assertEquals(adapter.calls.length, 1, "a pure hit never reaches the adapter");
+	// ...and never reaches the events layer either, which sits BELOW the cache: a
+	// caller counting responses through `events` does not see cache hits at all
+	assertEquals(log, ["request:1", "response:200"]);
+
+	// the same placement makes a revalidation report the *raw* 304, even though the
+	// caller receives the synthesized 200
+	const { events: revalEvents, log: revalLog } = recordEvents();
+	const revalidator = stubAdapter("stub", [
+		makeResult({ url: URL_, status: 304, body: null }),
+	]);
+	const conditional = createFetcher({
+		adapters: revalidator,
+		retry: false,
+		cache: { store, mode: "conditional" },
+		events: revalEvents,
+	});
+	const revalidated = await conditional.fetch(URL_);
+	assertEquals(revalidated.status, 200, "the caller gets the stored status");
+	assert(revalidated.notModified);
+	assertEquals(revalLog, ["request:1", "response:304"]);
 });
 
 // ---------------------------------------------------------------------------
