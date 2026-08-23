@@ -1,0 +1,32 @@
+{
+	"name": "@marianmeres/page-fetcher",
+	"version": "0.1.0",
+	"exports": {
+		".": "./src/mod.ts"
+	},
+	"tasks": {
+		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser tests/",
+		"test:watch": "deno test --watch --allow-net=127.0.0.1 --ignore=tests/browser tests/",
+		"test:browser": "BROWSER_TESTS=1 deno test -A tests/browser/",
+		"npm:build": "deno run -A scripts/build-npm.ts",
+		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public",
+		"release": "deno run -A jsr:@marianmeres/release",
+		"publish": "deno publish && deno task npm:publish",
+		"rp": "deno task release -y && deno task publish",
+		"rpm": "deno task release minor -y && deno task publish"
+	},
+	"imports": {
+		"@marianmeres/clog": "jsr:@marianmeres/clog@^3.21.0",
+		"@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.16.0",
+		"@std/assert": "jsr:@std/assert@^1.0.19",
+		"@std/fs": "jsr:@std/fs@^1.0.24",
+		"@std/path": "jsr:@std/path@^1.1.6",
+		"@std/testing": "jsr:@std/testing@^1.0.18"
+	},
+	"fmt": {
+		"useTabs": true,
+		"lineWidth": 90,
+		"indentWidth": 4,
+		"proseWrap": "preserve"
+	}
+}
