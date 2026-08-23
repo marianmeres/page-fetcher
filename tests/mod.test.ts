@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import * as mod from "../src/mod.ts";
+import * as adapters from "../src/adapters.ts";
 
 // Type-level surface check: these must all be importable as types from the root.
 // (Types are erased at runtime, so this is a compile-time assertion only.)
@@ -89,5 +90,27 @@ Deno.test("mod.ts exports exactly the documented runtime surface", () => {
 		"safeEmit",
 		"sleep",
 		"timeoutGuard",
+	]);
+});
+
+Deno.test("adapters.ts exports exactly the documented runtime surface", () => {
+	assertEquals(Object.keys(adapters).sort(), [
+		"DEFAULT_ALLOW_CONTENT_TYPES",
+		"DEFAULT_MAX_BYTES",
+		"DEFAULT_MAX_REDIRECTS",
+		"DEFAULT_USER_AGENT",
+		"createHttpAdapter",
+		"decodeText",
+		"detectBom",
+		"isAllowedContentType",
+		"isMetaSniffable",
+		"isSupportedEncoding",
+		"normalizeHeaders",
+		"parseContentType",
+		"playwrightDriver",
+		"puppeteerDriver",
+		"readBodyLimited",
+		"sniffCharset",
+		"sniffMetaCharset",
 	]);
 });

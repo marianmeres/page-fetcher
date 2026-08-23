@@ -51,7 +51,7 @@ browser subsystem, and the cache — see the backlog.
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------ |
 | 6    | Circuit breaker: `src/circuit-breaker.ts` (per-instance `Map`, logical-outcome counting, half-open single probe, map hygiene, `circuit-open` rejections) + FakeTime tests                                                                                                               | [03](./03-resilience-and-composition.md) #5, [06](./06-testing-docs-tooling.md) #2          | ✅     |
 | 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ✅     |
-| 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ⬜     |
+| 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ✅     |
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ⬜     |
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ⬜     |
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ⬜     |
@@ -247,6 +247,42 @@ browser subsystem, and the cache — see the backlog.
   caller awaits real completion, and a post-dispose `fetch()` rejects with a plain
   `Error`; fetcher-level `headers`/`userAgent` merge case-insensitively under the
   per-request ones and apply to every adapter.
+
+- **2026-08-23 (backlog task 8 — browser driver interface + bridges)** — built to
+  [04](./04-browser-adapter.md) #1/#2: injection-required drivers (no lazy import — it
+  has no spelling that works for both JSR and npm consumers), a structural
+  `BrowserDriver` that imports no third-party type, the two bridges, and the in-memory
+  fake. Calls made along the way:
+
+  29. **The fake driver lives in `tests/fixtures/fake-driver.ts`**, not
+      `tests/browser/fake-driver.ts` as doc 04's affected-files list has it. The
+      `tests/browser/` directory is `--ignore`d by `deno task test` (it is the flagged
+      real-browser suite), and the pool/adapter unit tests must always run.
+  30. **The bridges' `source` parameter types declare every member as `unknown`** and
+      validate the shape at call time. A structurally precise stand-in for Playwright's
+      or Puppeteer's own declarations would reject perfectly good module shapes over an
+      irrelevant signature detail — and would be a compile-time dependency on those
+      packages in all but name. The narrow interfaces the bridges actually work against
+      are internal, reached by one cast after the runtime check. A wrong argument throws
+      a `TypeError` naming what was expected, at wiring time rather than at first fetch.
+  31. **Both bridges unwrap `.default`** (namespace-vs-default import is the most common
+      injection mistake), and the Puppeteer bridge falls back from
+      `createBrowserContext` to `createIncognitoBrowserContext` — renamed in Puppeteer
+      22, and plenty of installs are older.
+  32. **`normalizeHeaders` is exported** from the adapters barrel: the "header keys are
+      lowercased" half of `DriverNavResult`'s contract is something a custom driver
+      author has to satisfy, so hand them the function that does it.
+  33. **New test file beyond doc 06's matrix: `tests/browser-drivers.test.ts`** (the
+      precedent is decision 12). The bridges are this package's mapping table between one
+      internal interface and two third-party APIs, so they are tested against hand-built
+      mock modules — neither Playwright nor Puppeteer is installed, which is exactly what
+      the structural interface buys.
+
+  Fake-driver semantics the later tasks depend on: closing a page cancels an in-flight
+  `goto` (that is how the adapter will implement cancellation, since neither driver's
+  `goto` accepts a signal); a `killBrowser` route makes the navigation fail rather than
+  return; `crashAfterPages` and `failLaunches` script the pool's recovery paths; and
+  every delay is a `setTimeout`, so the whole suite runs under `FakeTime`.
 
 ## How to resume (for a fresh conversation)
 

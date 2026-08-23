@@ -2,7 +2,9 @@
  * Adapters — the things that actually perform I/O at the bottom of a layer stack.
  *
  * Flat barrel, kept in sync with the `deno.json` exports map and the npm build's entry
- * points. See {@linkcode createHttpAdapter}.
+ * points. See {@linkcode createHttpAdapter} for the plain-`fetch` adapter, and
+ * {@linkcode playwrightDriver} / {@linkcode puppeteerDriver} for the browser drivers —
+ * which the caller injects, since this package never imports a browser itself.
  *
  * @module
  */
@@ -34,3 +36,25 @@ export type { CharsetSource, SniffCharsetOptions } from "./charset.ts";
 
 export { readBodyLimited } from "./read-body.ts";
 export type { ReadBodyOptions } from "./read-body.ts";
+
+export { normalizeHeaders } from "./adapters/browser/driver.ts";
+export type {
+	BrowserDriver,
+	DriverBrowser,
+	DriverContext,
+	DriverContextOptions,
+	DriverNavResult,
+	DriverPage,
+} from "./adapters/browser/driver.ts";
+
+export { playwrightDriver } from "./adapters/browser/drivers/playwright.ts";
+export type {
+	PlaywrightDriverOptions,
+	PlaywrightSource,
+} from "./adapters/browser/drivers/playwright.ts";
+
+export { puppeteerDriver } from "./adapters/browser/drivers/puppeteer.ts";
+export type {
+	PuppeteerDriverOptions,
+	PuppeteerSource,
+} from "./adapters/browser/drivers/puppeteer.ts";
