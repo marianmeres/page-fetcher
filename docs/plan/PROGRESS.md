@@ -115,6 +115,18 @@ Branch: `master`
       (flat `src/adapters.ts`, `src/cache.ts`; internals in subdirectories) is adopted
       as specified, because it is what keeps the JSR and npm maps in sync.
 
+  11. **Reading a `skip-body` result rejects with `kind: "no-body"`**
+      (`details.reason: "skip-body"`), not with `unsupported-type` — resolving the one
+      real 01/02 conflict via the ownership rule ([01](./01-public-contracts.md) #6 owns
+      the error shape, [02](./02-http-adapter-and-guards.md) #6 owns the policy). One
+      kind plus a `reason` detail keeps all four body-absence causes regular; using
+      `unsupported-type` would force `retainBody: false` and HEAD to invent different
+      kinds for the identical condition.
+  12. **One test file beyond the 12-file matrix:** `tests/internal.test.ts`, covering
+      `ensureRequestId` and `createBodyResult`. They are the single enforcement point of
+      the id-generation and body contracts, so they get direct tests rather than being
+      exercised only through adapters.
+
   **Still open (backlog tasks only, not needed for the sprint):** circuit-breaker
   default in `createFetcher` (OFF as spec'd vs ON for the crawler) — task 6/7;
   serve-stale-on-circuit-open / `stale-if-error` — v2 candidate; `Retry-After` on the
