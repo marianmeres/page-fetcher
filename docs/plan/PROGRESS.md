@@ -59,7 +59,7 @@ browser subsystem, and the cache — see the backlog.
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ✅     |
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ✅     |
 | 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ✅     |
-| 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ⬜     |
+| 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ✅     |
 | 17   | Pre-release checks (NO publish without explicit owner green-light): PRE_RELEASE_DOCS_UPDATE checklist, `deno publish --dry-run`, scratch-dir `npm i` smoke of the three subpath imports under Node                                                                                      | [06](./06-testing-docs-tooling.md) #12                                                      | ⬜     |
 
 ---
@@ -584,6 +584,33 @@ browser subsystem, and the cache — see the backlog.
 
   `API.md` needs no packaging change: npmbuild's default `rootFiles` already lists it, so
   it ships to npm from the next `deno task npm:build` onward.
+
+- **2026-08-23 (backlog task 16 — design doc finalized)** — the promotion itself happened
+  in task 1 (decision 9); what this task owed was the _finished_ deviations list, now that
+  every backlog decision is on record. `docs/design.md` carries 27 rows, ordered by the
+  sketch's own section numbering.
+
+  67. **Twelve deviations added from the backlog era**, all of them things a reader of the
+      sketch would otherwise expect and not find: the browser driver is injected rather
+      than lazily imported and is not a peer dependency (§2); `retainBody`/`hasBody` are
+      first-class where the sketch referenced an option it never declared (§4); no cookie
+      jar (§5.1); the driver interface is larger than the six methods sketched, and
+      `"networkidle"` is a soft hybrid, and `"per-request"` is capped at `poolSize` (§5.2);
+      the breaker classifies three ways, not two (§6); the default UA is HTTP-only, since
+      the browser adapter deliberately keeps the browser's own (§7); the cache is GET-only
+      in v1 (§8); `onRequest` carries `{ requestId, attempt }`, and the package gained an
+      optional `logger` beside "emits, does not log" (§9); the leak test is a best-effort
+      `ps` scan that asserts its own scan works first (§10).
+  68. **§11's four open questions get their own answer table**, right under the
+      deviations. The sketch asked them; a reader hits them in the promoted copy and
+      should not have to re-derive the outcome from the plan. Two resolved as the sketch
+      suggested (defer HTTP/2 tuning, no cookie jar), one against its suggestion (eager
+      bytes + lazy decode for _every_ adapter, not eager-browser/lazy-HTTP), one placed
+      out of scope (a HEAD-then-GET helper is a two-request policy; this package's unit is
+      one request).
+  69. **The sketch body is verified byte-identical to `tmp/page-fetcher-DESIGN.md`** after
+      `deno fmt` normalization — the promoted copy is formatted, never edited, which is
+      what makes it usable as evidence of intent. The `tmp/` original stays as scratch.
 
 ## How to resume (for a fresh conversation)
 
