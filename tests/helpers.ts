@@ -5,6 +5,7 @@
  * must stay socket-free so a failure bisects instantly to "logic vs I/O".
  */
 
+import type { FakeTime } from "@std/testing/time";
 import { PageFetchError, type PageFetchErrorInit } from "../src/errors.ts";
 import { createBodyResult } from "../src/internal.ts";
 import type { FetchFn, FetchRequest, FetchResult, Logger } from "../src/types.ts";
@@ -172,4 +173,34 @@ export function recordingLogger(): RecordingLogger {
 				.filter((r) => !level || r.level === level)
 				.map((r) => String(r.args[0])),
 	};
+}
+
+/**
+ * Run a pending promise to completion under `FakeTime`.
+ *
+ * Advances timer by timer (`nextAsync`) rather than jumping the clock: a big
+ * `tickAsync` moves `Date.now()` to the far end *before* the callbacks run, which would
+ * make every deadline under test look expired.
+ */
+export async function settleWithFakeTime<T>(
+	time: FakeTime,
+	promise: Promise<T>,
+): Promise<T> {
+	let done = false;
+	const settled = promise.then(
+		(v) => {
+			done = true;
+			return { v };
+		},
+		(e) => {
+			done = true;
+			return { e };
+		},
+	);
+	for (let i = 0; i < 500 && !done; i++) {
+		if (!(await time.nextAsync())) await time.tickAsync(0);
+	}
+	const out = await settled;
+	if ("e" in out) throw out.e;
+	return out.v as T;
 }

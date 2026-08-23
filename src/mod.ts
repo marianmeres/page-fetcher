@@ -15,6 +15,14 @@
 export { defaultRetryable, PageFetchError } from "./errors.ts";
 export type { PageFetchErrorInit, PageFetchErrorKind } from "./errors.ts";
 
+export { composeSignal, deadlineGuard, timeoutGuard } from "./guards.ts";
+export type { DeadlineGuardOptions, TimeoutGuardOptions } from "./guards.ts";
+
+export { createRetry, defaultIsRetryable, parseRetryAfter } from "./retry.ts";
+export type { BackoffStrategy, RetryOptions } from "./retry.ts";
+
+export { resolveDeadline, sleep } from "./utils.ts";
+
 export type {
 	Adapter,
 	BodyAbsentReason,

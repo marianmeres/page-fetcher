@@ -36,6 +36,13 @@ Branch: `master`
 | 4 | HTTP adapter + stream helpers: `src/read-body.ts`, `src/content-type.ts`, `src/charset.ts`, `src/adapters/http.ts` (redirect loop, UA, timing) + `tests/http-adapter.test.ts`, `tests/charset.test.ts`                                                                                                             | [02](./02-http-adapter-and-guards.md) #1/#2/#4/#6/#7/#8                                        | ⬜     | —         |
 | 5 | Wrapper guards + retry: `src/guards.ts` (timeout/deadline, `composeSignal`, typed abort reasons), `src/utils.ts` (`sleep`, `resolveDeadline`), `src/retry.ts` (`RetryOutcome` either/or, classification table, `Retry-After`, deadline fail-fast) + FakeTime tests (`tests/guards.test.ts`, `tests/retry.test.ts`) | [02](./02-http-adapter-and-guards.md) #3/#5; [03](./03-resilience-and-composition.md) #3/#4/#9 | ⬜     | —         |
 
+**Sprint complete (2026-08-23).** The HTTP-only core is implemented and tested: 66
+tests / 57 steps green, `deno lint`, `deno fmt --check` and `deno publish --dry-run`
+(no slow types) all clean. The unit suites (`retry`, `guards`, `errors`, `internal`,
+`mod`) never open a socket; the integration suites run against the local fixture server
+only. Not yet built, by design: the circuit breaker, `compose()`/`createFetcher`, the
+browser subsystem, and the cache — see the backlog.
+
 ---
 
 ## Backlog (ranked, post-sprint — full path to v1)
@@ -147,13 +154,35 @@ Branch: `master`
       `hasBody: true` with `size: 0`; the four absence reasons stay exactly the four
       the contract names.
 
+  16. **`composeSignal` returns `AbortSignal | undefined`**, not always an
+      `AbortSignal` ([02](./02-http-adapter-and-guards.md) #5 sketched the latter):
+      when there is nothing to listen to, attaching no signal at all is cheaper and
+      keeps the stub-adapter assertions honest.
+  17. **The per-attempt timeout budget is `min(timeout, deadline remaining)`, and
+      whichever constraint binds names the failure** — a request cut off by its overall
+      deadline reports `kind: "deadline"` (not retryable) even though the timeout guard
+      is the layer that aborted it. Without this, a deadline-bound attempt would look
+      retryable and the retry layer would keep going.
+  18. **`safeEmit` lives in `src/internal.ts` for now**, and the retry layer already
+      emits `onRequest` (per attempt) and `onRetry` — that is the emission ownership
+      doc 01 #3 assigns to it, so wiring it now avoids editing `retry.ts` again at
+      backlog task 7. Task 7's `src/events.ts` should re-home/expand the helper rather
+      than duplicate it.
+  19. **Test trap worth remembering:** under `FakeTime`, a large `tickAsync(ms)` moves
+      `Date.now()` to the far end _before_ the due callbacks run, so every deadline
+      under test looks expired and timers scheduled during the jump never fire. The
+      shared `settleWithFakeTime` helper steps timer-by-timer via `nextAsync()`
+      instead — use it for anything involving sleeps or deadlines.
+
   **Still open (backlog tasks only, not needed for the sprint):** circuit-breaker
   default in `createFetcher` (OFF as spec'd vs ON for the crawler) — task 6/7;
   serve-stale-on-circuit-open / `stale-if-error` — v2 candidate; `Retry-After` on the
   `throwOnHttpError` path (needs headers reachable from an `http`-kind error) — task 7;
   browser defaults bundle — tasks 8–10; cache defaults bundle — task 12; leak-test
   rigor and the first real driver for the flagged suite — task 11; the stale
-  `CLAUDE_TEMPLATE.md` path in `agents/mm-local-docs` — task 14.
+  `CLAUDE_TEMPLATE.md` path in `agents/mm-local-docs` — task 14. Also noted for task
+  17: `deno publish` currently includes `tests/` in the tarball — decide then whether
+  to add a `publish.exclude`.
 
 ## How to resume (for a fresh conversation)
 
