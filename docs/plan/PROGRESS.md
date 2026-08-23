@@ -52,7 +52,7 @@ browser subsystem, and the cache — see the backlog.
 | 6    | Circuit breaker: `src/circuit-breaker.ts` (per-instance `Map`, logical-outcome counting, half-open single probe, map hygiene, `circuit-open` rejections) + FakeTime tests                                                                                                               | [03](./03-resilience-and-composition.md) #5, [06](./06-testing-docs-tooling.md) #2          | ✅     |
 | 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ✅     |
 | 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ✅     |
-| 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ⬜     |
+| 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ✅     |
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ⬜     |
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ⬜     |
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ⬜     |
@@ -283,6 +283,67 @@ browser subsystem, and the cache — see the backlog.
   `goto` accepts a signal); a `killBrowser` route makes the navigation fail rather than
   return; `crashAfterPages` and `failLaunches` script the pool's recovery paths; and
   every delay is a `setTimeout`, so the whole suite runs under `FakeTime`.
+
+- **2026-08-23 (backlog task 9 — browser adapter, single context)** — doc
+  [04](./04-browser-adapter.md)'s five open questions that this task owns were resolved
+  by taking the doc's own recommendation in each case: soft-hybrid `"networkidle"` as
+  the default wait (load → bounded idle wait → proceed and set
+  `extra.networkidleTimedOut`), `finalUrl` = end of the HTTP redirect chain with
+  `extra.pageUrl` for client-side drift, capture on by default with `captureLimit: 50`,
+  `idleMs: 500` / idle `timeout: 10_000`, and the Playwright engine option kept (the
+  README will promise chromium as the tested one). The pool numbers stay open for task
+  10. Calls the doc did not make:
+
+  34. **The browser adapter sets no `User-Agent` by default** — the opposite of the HTTP
+      adapter, which announces itself (decision 7). Replacing a real browser's UA with a
+      bot string is what gets a headless browser served different HTML or blocked
+      outright, which defeats the reason to run one; fidelity is the browser adapter's
+      entire value. `userAgent` is one option away for callers who prefer politeness,
+      and the README carries the note.
+  35. **A request that changes context-affecting options gets its own one-off context**
+      (`ContextProvider.acquire(signal, contextOptions)`), created and closed with that
+      request. Per-request `headers`, a per-request `user-agent` and
+      `adapterOptions.contextOptions` are all in that set. The alternative — applying
+      them per page via `applyPageOptions` — works on Puppeteer and is a **silent no-op
+      on Playwright**, whose contexts take options only at creation. One driver honoring
+      a header and the other ignoring it is the worst outcome available; paying for a
+      context (cheap, by design) is the honest one.
+  36. **`maxBytes` measures the serialized DOM, post-hoc** — `DEFAULT_MAX_DOM_BYTES`,
+      named distinctly from the HTTP adapter's `DEFAULT_MAX_BYTES` because both land in
+      the same flat `adapters` barrel, and because they genuinely measure different
+      things (re-serialized DOM vs decoded wire bytes). Same reasoning for
+      `DEFAULT_BROWSER_MAX_REDIRECTS`: the HTTP adapter aborts a chain, this one reports
+      on a completed one.
+  37. **Non-GET is refused** with `kind: "network"`, `retryable: false` ("route non-GET
+      to the http adapter") — a navigation is a GET, and inventing a kind for a request
+      shape the transport cannot send is what `network` already covers.
+  38. **Cancellation closes the page _and_ stops waiting for it.** Neither driver's
+      `goto` takes a signal, so the abort listener closes the page (which does cancel the
+      navigation) while the fetch rejects immediately. The abandoned navigation is still
+      unwinding, so its page-close and lease-release are deferred until it settles, and
+      the lease goes back marked `broken` — otherwise a cancelled fetch would leak a page
+      or hand a half-cancelled context to the next caller.
+  39. **`browserErrorFrom` checks the signal before it classifies the message.** Because
+      cancelling _is_ closing the page, an abort surfaces as whatever unrelated-looking
+      driver error the in-flight operation produced; only the signal knows the truth, and
+      a guard's own error (a timeout, a deadline) rides on the abort reason and is
+      returned unchanged. Everything else is classified by message — `net::ERR_`/`NS_ERROR_`
+      → `network`, `timeout` → `timeout`, the rest → `browser` — because neither driver
+      exposes machine-readable navigation error codes.
+  40. **`ContextProvider` / `ContextLease` are introduced now**, in `browser-adapter.ts`,
+      with a trivial single-browser/single-context implementation. Task 10's
+      `createContextPool` implements the same two interfaces, so the pool is a swap
+      rather than an adapter rewrite. The provider memoizes **promises**, not handles:
+      `shared ??= await newContext()` lets every concurrent racer past the check and
+      opens N contexts — a bug the concurrency test now pins.
+
+  Also settled while wiring: the request filter and page options are installed before
+  `goto` (the order the drivers require); `onPage` runs after the wait and before
+  `content()`, its result merged into `extra` last, and a throwing hook lands in
+  `extra.onPageError` instead of failing the fetch; `ttfb` for a browser fetch includes
+  launch/context/page setup, so a cold first fetch says so honestly; a `"document"`
+  request is never blocked whatever the patterns say; and per-request blocking options
+  **replace** the adapter's rather than merging.
 
 ## How to resume (for a fresh conversation)
 

@@ -58,3 +58,44 @@ export type {
 	PuppeteerDriverOptions,
 	PuppeteerSource,
 } from "./adapters/browser/drivers/puppeteer.ts";
+
+export {
+	createBrowserAdapter,
+	createSingleContextProvider,
+	DEFAULT_BROWSER_MAX_REDIRECTS,
+	DEFAULT_CAPTURE_LIMIT,
+	DEFAULT_MAX_DOM_BYTES,
+} from "./adapters/browser/browser-adapter.ts";
+export type {
+	BrowserAdapterOptions,
+	ContextLease,
+	ContextProvider,
+	OnPageHook,
+} from "./adapters/browser/browser-adapter.ts";
+
+export {
+	compileRequestFilter,
+	DEFAULT_BLOCKED_RESOURCES,
+} from "./adapters/browser/blocking.ts";
+export type {
+	BlockingOptions,
+	RequestFilter,
+	ResourceKind,
+	UrlPredicate,
+} from "./adapters/browser/blocking.ts";
+
+export {
+	applyWait,
+	browserErrorFrom,
+	DEFAULT_NAVIGATION_TIMEOUT,
+	DEFAULT_NETWORK_IDLE,
+	DEFAULT_WAIT,
+	normalizeWait,
+} from "./adapters/browser/wait.ts";
+export type {
+	ApplyWaitOptions,
+	BrowserErrorContext,
+	NetworkIdleOptions,
+	WaitOutcome,
+	WaitStrategy,
+} from "./adapters/browser/wait.ts";
