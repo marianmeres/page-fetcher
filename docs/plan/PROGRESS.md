@@ -55,7 +55,7 @@ browser subsystem, and the cache — see the backlog.
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ✅     |
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ✅     |
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ✅     |
-| 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ⬜     |
+| 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ✅     |
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ⬜     |
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ⬜     |
 | 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ⬜     |
@@ -438,6 +438,53 @@ browser subsystem, and the cache — see the backlog.
   imports are never resolved), which strengthens the case for a `publish.exclude` on
   `tests/`. A plain `deno check` of those files does download Playwright and Puppeteer;
   that is fine as an explicit act, and the default test task never touches them.
+
+- **2026-08-23 (backlog task 12 — cache layer)** — doc
+  [05](./05-cache-layer.md)'s four open questions are resolved by taking its own
+  recommendation in each: **GET-only** caching in v1 (a cached HEAD entry would be
+  bodyless and break the `CachedEntry` invariant, for ~zero savings — the method stays in
+  the key string so widening needs no migration); a bare `CacheStore` handed to
+  `createFetcher` defaults to **`"conditional"`** (correct against a live origin beats
+  convenient-but-stale as a default; `mode: "dev"` is one word away); a throwing
+  `store.get`/`store.set` **degrades to a bypass with a `logger.warn`** (a cache is an
+  optimization, and a failing disk must not stop a crawl); and the serialization helpers
+  **ship in v1** — they are the whole contract for a persistent store, and without them
+  every author re-discovers the `Headers`/`Uint8Array` JSON traps. Calls the doc did not
+  make:
+
+  50. **The layer is composed outermost, above the circuit breaker** — the placement doc
+      03 sketched and `fetcher.ts` already reserved. A hit must cost nothing and depend on
+      nothing; a revalidation, being an ordinary forwarded request, is retried, timed out
+      and counted like any other.
+  51. **`retainBody: false` bypasses the cache entirely.** The caller explicitly asked for
+      no body, so serving one from the store would contradict them — and a bodyless result
+      is not storable either way, so the alternative was "read from cache but never write
+      to it", which is a confusing half-behavior for a link-checking mode whose whole point
+      is not moving bytes.
+  52. **A result with no readable body is never stored, whatever `isCacheable` returns.**
+      That check lives in the layer, not in the default policy: a custom predicate cannot
+      conjure bytes that were never retained, and an entry without a body cannot be
+      synthesized back into a result. `isCacheable` remains a pure _policy_ hook.
+  53. **`plainHeaders` filters `set-cookie` by iteration, not by `Object.fromEntries`
+      plus a `delete`.** Headers iteration yields each `set-cookie` separately, so
+      `fromEntries` would keep only the last one — the filter has to happen _during_ the
+      walk. Verified on this machine that `new Headers(headers)` does preserve the
+      individual entries, which is what makes the test meaningful.
+  54. **The cache surface is exported from the `./cache` subpath; the root re-exports the
+      four _types_ only** (`CacheStore`, `CachedEntry`, `CacheMode`, `CacheLayerOptions`),
+      so `createFetcher({ cache })` is spellable without a second import. Mirrors the
+      adapters split, where the root owns the `Adapter` type and `./adapters` owns
+      `createHttpAdapter`. The implementation is in the root module graph regardless —
+      `fetcher.ts` imports the layer — so the subpath is ergonomics, exactly as doc 05
+      says.
+  55. **`ok` on a synthesized result is computed from the _stored_ status**, so a
+      negative-cached 404 replays as `ok: false` while a 304-revalidated 200 replays as
+      `ok: true`. The stored status is what is returned — never 304.
+
+  Deliberately not built (all documented as scope, not as gaps): `Vary`, `Cache-Control`
+  freshness parsing, heuristic freshness, `stale-while-revalidate`, `stale-if-error`, a
+  byte-budget cap on the memory store, and any background TTL sweeper (a library owning a
+  `setInterval` is exactly what Deno's test sanitizers exist to catch).
 
 ## How to resume (for a fresh conversation)
 

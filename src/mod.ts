@@ -27,6 +27,15 @@ export type {
 	CircuitStateChange,
 } from "./circuit-breaker.ts";
 
+// the cache *implementation* lives in the `/cache` subpath; only the types needed to
+// spell `createFetcher({ cache })` are re-exported here
+export type {
+	CachedEntry,
+	CacheLayerOptions,
+	CacheMode,
+	CacheStore,
+} from "./cache/types.ts";
+
 export { compose } from "./compose.ts";
 
 export { createEventsLayer, safeEmit } from "./events.ts";

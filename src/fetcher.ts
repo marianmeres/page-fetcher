@@ -8,6 +8,8 @@
  * The wired order, outermost → innermost, and why each layer sits where it does:
  *
  * ```
+ * cache             optional, off by default — outermost, so a hit costs nothing and
+ *                   depends on nothing, an open circuit included
  * circuit breaker   optional, off by default — refuses before any I/O, and above retry
  *                   so one logical request counts once, however many attempts it made
  * events            the terminal onResponse/onError pair, exactly once per request;
@@ -21,13 +23,12 @@
  * routing           terminal: picks the adapter and calls it
  * ```
  *
- * The cache layer will slot in above the breaker (a cache hit must cost nothing and
- * depend on nothing, an open circuit included).
- *
  * @module
  */
 
 import { createHttpAdapter } from "./adapters/http.ts";
+import { createCacheLayer } from "./cache/layer.ts";
+import type { CacheLayerOptions, CacheStore } from "./cache/types.ts";
 import { type CircuitBreakerOptions, createCircuitBreaker } from "./circuit-breaker.ts";
 import { compose } from "./compose.ts";
 import { createEventsLayer } from "./events.ts";
@@ -72,6 +73,17 @@ export interface CreateFetcherOptions extends ObservabilityOptions {
 	 * page has no use for it.
 	 */
 	circuitBreaker?: CircuitBreakerOptions | boolean;
+	/**
+	 * Response cache. Default: **off** — there is no implicit store.
+	 *
+	 * A bare {@linkcode CacheStore} is shorthand for `{ store }`, i.e. the
+	 * `"conditional"` mode: correct against a live origin. Pass
+	 * `{ store, mode: "dev" }` for the "serve any hit, never ask the origin" behavior.
+	 *
+	 * Composed outermost, so a hit costs nothing and depends on nothing — not an open
+	 * circuit, not the retry budget, not the deadline.
+	 */
+	cache?: CacheStore | CacheLayerOptions;
 	/** Default per-attempt timeout in ms, used when the request sets none. */
 	timeout?: number;
 	/** Default overall deadline, used when the request sets none. */
@@ -146,6 +158,7 @@ export function createFetcher(options: CreateFetcherOptions = {}): Fetcher {
 		selectAdapter,
 		retry,
 		circuitBreaker,
+		cache,
 		timeout,
 		deadline: defaultDeadline,
 		headers: defaultHeaders,
@@ -192,6 +205,12 @@ export function createFetcher(options: CreateFetcherOptions = {}): Fetcher {
 
 	// ---- the stack, outermost first ------------------------------------------
 	const layers: FetchLayer[] = [];
+
+	if (cache) {
+		// a bare store means "use the defaults"; `store` is the discriminator
+		const opts: CacheLayerOptions = "store" in cache ? cache : { store: cache };
+		layers.push(createCacheLayer({ ...opts, logger: opts.logger ?? logger }));
+	}
 
 	if (circuitBreaker) {
 		const opts: CircuitBreakerOptions = circuitBreaker === true ? {} : circuitBreaker;

@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import * as mod from "../src/mod.ts";
 import * as adapters from "../src/adapters.ts";
+import * as cache from "../src/cache.ts";
 
 // Type-level surface check: these must all be importable as types from the root.
 // (Types are erased at runtime, so this is a compile-time assertion only.)
@@ -9,6 +10,10 @@ import type {
 	BackoffStrategy,
 	BodyAbsentReason,
 	BodyFactory,
+	CachedEntry,
+	CacheLayerOptions,
+	CacheMode,
+	CacheStore,
 	CircuitBreakerOptions,
 	CircuitState,
 	CircuitStateChange,
@@ -41,6 +46,10 @@ type _Surface = [
 	BackoffStrategy,
 	BodyAbsentReason,
 	BodyFactory,
+	CachedEntry,
+	CacheLayerOptions,
+	CacheMode,
+	CacheStore,
 	CircuitBreakerOptions,
 	CircuitState,
 	CircuitStateChange,
@@ -132,5 +141,18 @@ Deno.test("adapters.ts exports exactly the documented runtime surface", () => {
 		"registerExitHook",
 		"sniffCharset",
 		"sniffMetaCharset",
+	]);
+});
+
+Deno.test("cache.ts exports exactly the documented runtime surface", () => {
+	assertEquals(Object.keys(cache).sort(), [
+		"CACHE_ENTRY_VERSION",
+		"DEFAULT_MAX_ENTRIES",
+		"cacheKey",
+		"createCacheLayer",
+		"createMemoryCache",
+		"defaultIsCacheable",
+		"deserializeCachedEntry",
+		"serializeCachedEntry",
 	]);
 });
