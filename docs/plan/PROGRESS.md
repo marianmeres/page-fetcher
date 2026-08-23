@@ -57,7 +57,7 @@ browser subsystem, and the cache — see the backlog.
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ✅     |
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ✅     |
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ✅     |
-| 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ⬜     |
+| 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ✅     |
 | 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ⬜     |
 | 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ⬜     |
 | 17   | Pre-release checks (NO publish without explicit owner green-light): PRE_RELEASE_DOCS_UPDATE checklist, `deno publish --dry-run`, scratch-dir `npm i` smoke of the three subpath imports under Node                                                                                      | [06](./06-testing-docs-tooling.md) #12                                                      | ⬜     |
@@ -519,6 +519,32 @@ browser subsystem, and the cache — see the backlog.
   `deno check` was perfectly happy. `deno check` and `tsc` are not the same type checker,
   and only the npm path runs the stricter one; noted for task 17, where the npm build is
   part of the checklist. The awaited value is now widened to `unknown` first.
+
+- **2026-08-23 (backlog task 14 — agent docs)** — `AGENTS.md` (~800 tokens),
+  `docs/{architecture,conventions,tasks}.md` and the `CLAUDE.md` redirect, written per
+  the [agent documentation guide](/Users/mm/projects/@marianmeres/agents/mm-local-docs/AGENT_DOCUMENTATION_GUIDE.md).
+  `docs/.gitkeep` is gone. The one open question is resolved and one is handed back:
+
+  60. **No `docs/domains/`.** The guide's structure is explicitly adaptable, and this
+      package is one domain — a per-domain layer would only restate `architecture.md`.
+      The browser subsystem is the closest thing to a second domain; it is covered by the
+      component map plus the "Add a browser capability" procedure, and earns its own file
+      only if it grows a second driver-shaped concern.
+  61. **`tasks.md` documents five procedures, not the three the doc listed** — "Add a
+      layer" and "Add a browser capability" were added, because both are things a fresh
+      agent will attempt and both have non-obvious invariants (stack placement is a
+      contract; a driver capability must land in _both_ bridges and in the fake). The
+      release procedure is a sixth, short one, ending in the "never publish without an
+      explicit green-light" rule.
+  62. **`AGENTS.md` points at this file, not just at `design.md`.** The decisions log is
+      the only place that records _why_ a call was made; without the pointer, a later
+      agent re-litigates settled questions. Stated as such in the index.
+
+  **Still open for the owner (not fixable from this repo):** the guide's §9 step 4 still
+  says `cp /Users/mm/projects/@marianmeres/marianmeres/mm-local-docs/CLAUDE_TEMPLATE.md`,
+  a directory that does not exist. The real path is
+  `/Users/mm/projects/@marianmeres/agents/mm-local-docs/CLAUDE_TEMPLATE.md`, which is what
+  this task used. The fix belongs in `agents/mm-local-docs`.
 
 ## How to resume (for a fresh conversation)
 
