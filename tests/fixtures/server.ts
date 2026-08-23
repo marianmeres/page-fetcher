@@ -140,7 +140,8 @@ async function handle(req: Request, ctx: Ctx): Promise<Response> {
 		}
 
 		case path === "/redirect-bad-location":
-			return redirect(302, "ht!tp://[not a url]", "bad location");
+			// a Location that `new URL(location, base)` cannot parse (no host)
+			return redirect(302, "http://[bad", "bad location");
 
 		case path === "/slow":
 			await abortableDelay(Number(q.get("ms") ?? 100), ctx.kill, req.signal);
@@ -310,8 +311,14 @@ async function stripHeadBody(req: Request, res: Response): Promise<Response> {
 	});
 }
 
-/** Start both fixture servers on random loopback ports. */
-export async function startFixtureServer(): Promise<FixtureServer> {
+/**
+ * Start both fixture servers on random loopback ports.
+ *
+ * `Deno.serve` is ready synchronously (its `addr` carries the assigned port), but the
+ * signature stays promise-shaped so callers do not have to change if that ever needs
+ * to await something.
+ */
+export function startFixtureServer(): Promise<FixtureServer> {
 	const kill = new AbortController();
 	const counts = new Map<string, number>();
 	const ctx = { origin: "", other: "", kill: kill.signal, counts };
@@ -333,7 +340,7 @@ export async function startFixtureServer(): Promise<FixtureServer> {
 	Object.assign(ctx, { origin, other: origin2 });
 	Object.assign(ctx2, { origin: origin2, other: origin });
 
-	return {
+	return Promise.resolve({
 		origin,
 		origin2,
 		url: (path: string) => `${origin}${path}`,
@@ -343,5 +350,5 @@ export async function startFixtureServer(): Promise<FixtureServer> {
 			kill.abort();
 			await Promise.all([a.shutdown(), b.shutdown()]);
 		},
-	};
+	});
 }

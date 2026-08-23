@@ -134,6 +134,19 @@ Branch: `master`
       assertions). Every route is served on both origins, since the two servers share
       one handler.
 
+  14. **The adapter never leaks a raw platform error.** Its outer `catch` maps
+      anything that is not already a `PageFetchError`: an abort (from the fetch _or_
+      from the body reader, after the headers) becomes `kind: "aborted"` — or the
+      guard's own `PageFetchError` when that is the abort reason — and everything else
+      becomes `kind: "network"`, since Deno/undici report transport failures as plain
+      `TypeError`s and the retry layer must be able to classify them. Adapter-thrown
+      errors are stamped `attempts: 1`.
+  15. **A 304 from the bare adapter reports `hasBody: false`, reason `not-modified`**
+      (and `ok: false`, `notModified: false`) — only the cache layer may resolve a 304
+      into a body and flip those flags. A bodyless 200/204 still reports
+      `hasBody: true` with `size: 0`; the four absence reasons stay exactly the four
+      the contract names.
+
   **Still open (backlog tasks only, not needed for the sprint):** circuit-breaker
   default in `createFetcher` (OFF as spec'd vs ON for the crawler) — task 6/7;
   serve-stale-on-circuit-open / `stale-if-error` — v2 candidate; `Retry-After` on the

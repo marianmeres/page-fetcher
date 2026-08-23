@@ -2,7 +2,8 @@
 	"name": "@marianmeres/page-fetcher",
 	"version": "0.1.0",
 	"exports": {
-		".": "./src/mod.ts"
+		".": "./src/mod.ts",
+		"./adapters": "./src/adapters.ts"
 	},
 	"tasks": {
 		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser tests/",

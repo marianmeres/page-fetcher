@@ -98,3 +98,53 @@ function decodeOrFallback(bytes: Uint8Array, label: string): string {
 		return new TextDecoder("utf-8").decode(bytes);
 	}
 }
+
+/**
+ * Turn an abort into the right {@linkcode PageFetchError}.
+ *
+ * The timeout and deadline guards abort with a `PageFetchError` as the abort *reason*
+ * (`AbortSignal.any` adopts it), which is how the catch side tells "our timeout fired"
+ * from "the caller cancelled". Anything else means the caller's own signal fired.
+ */
+export function abortErrorFrom(
+	signal: AbortSignal | undefined,
+	ctx: { url: string; requestId?: string; cause?: unknown },
+): PageFetchError {
+	const reason = signal?.reason;
+	if (PageFetchError.is(reason)) return reason;
+	return new PageFetchError({
+		kind: "aborted",
+		url: ctx.url,
+		requestId: ctx.requestId,
+		retryable: false,
+		cause: reason ?? ctx.cause,
+	});
+}
+
+/** Whether a thrown value is the platform's "the signal aborted" rejection. */
+export function isAbortError(e: unknown): boolean {
+	return e instanceof DOMException && e.name === "AbortError" ||
+		(e instanceof Error && e.name === "AbortError");
+}
+
+/**
+ * Copy of `err` with a different `attempts` count.
+ *
+ * `PageFetchError` fields are readonly, so the retry layer (and an adapter stamping its
+ * single attempt) re-creates the error instead of mutating it.
+ */
+export function withAttempts(err: PageFetchError, attempts: number): PageFetchError {
+	if (err.attempts === attempts) return err;
+	return new PageFetchError({
+		kind: err.kind,
+		url: err.url,
+		message: err.message,
+		status: err.status,
+		finalUrl: err.finalUrl,
+		requestId: err.requestId,
+		attempts,
+		retryable: err.retryable,
+		cause: err.cause,
+		details: err.details,
+	});
+}
