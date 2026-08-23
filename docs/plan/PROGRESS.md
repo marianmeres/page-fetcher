@@ -49,7 +49,7 @@ browser subsystem, and the cache — see the backlog.
 
 | Rank | Task                                                                                                                                                                                                                                                                                    | Source                                                                                      | Status |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------ |
-| 6    | Circuit breaker: `src/circuit-breaker.ts` (per-instance `Map`, logical-outcome counting, half-open single probe, map hygiene, `circuit-open` rejections) + FakeTime tests                                                                                                               | [03](./03-resilience-and-composition.md) #5, [06](./06-testing-docs-tooling.md) #2          | ⬜     |
+| 6    | Circuit breaker: `src/circuit-breaker.ts` (per-instance `Map`, logical-outcome counting, half-open single probe, map hygiene, `circuit-open` rejections) + FakeTime tests                                                                                                               | [03](./03-resilience-and-composition.md) #5, [06](./06-testing-docs-tooling.md) #2          | ✅     |
 | 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ⬜     |
 | 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ⬜     |
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ⬜     |
@@ -183,6 +183,32 @@ browser subsystem, and the cache — see the backlog.
   `CLAUDE_TEMPLATE.md` path in `agents/mm-local-docs` — task 14. Also noted for task
   17: `deno publish` currently includes `tests/` in the tarball — decide then whether
   to add a `publish.exclude`.
+
+- **2026-08-23 (backlog task 6 — circuit breaker)** — built as doc
+  [03](./03-resilience-and-composition.md) #5 specs it (per-instance `Map`, host+port
+  key, consecutive-failure trip, single half-open probe, map hygiene). Four calls the
+  doc left implicit:
+
+  20. **Outcomes are classified three ways, not two:** failure / success /
+      **inconclusive**. `aborted`, `deadline` and a nested `circuit-open` prove nothing
+      about the host, so they neither increment the failure count nor reset it — and an
+      aborted _probe_ releases its slot without opening or closing the circuit (the next
+      arrival becomes the new probe). Treating "not a failure" as "the host is healthy"
+      would let a cancelled probe close a circuit on a host that is still down.
+  21. **The breaker emits `events.onCircuitOpen` itself**, alongside its own
+      `onStateChange` callback — the same double-emission retry already does for
+      `onRetry` (decision 18). Task 7 wires the sink, it does not bridge the callback.
+      Only closed→open and half-open→open transitions emit; refusals while open are
+      silent by design (an open circuit under load would otherwise emit thousands of
+      events per second, and the caller already has the rejection in hand).
+  22. **`defaultIsFailure` also treats an `http`-kind error with `status >= 500` as a
+      failure**, so the breaker behaves identically whether or not the stack opted into
+      `throwOnHttpError`. 4xx (429 included) never counts: the host is up and answering,
+      and rate limiting is retry/backoff's business, not outage detection's.
+  23. **Refusals name the state in `details`:** `{ host, state: "open", until }` while
+      the cooldown runs, `{ host, state: "half-open" }` (no `until`) for requests that
+      arrive while the single probe is in flight. Same `kind: "circuit-open"`,
+      `attempts: 0`, `retryable: false` for both.
 
 ## How to resume (for a fresh conversation)
 

@@ -15,6 +15,18 @@
 export { defaultRetryable, PageFetchError } from "./errors.ts";
 export type { PageFetchErrorInit, PageFetchErrorKind } from "./errors.ts";
 
+export {
+	createCircuitBreaker,
+	DEFAULT_CIRCUIT_COOLDOWN,
+	DEFAULT_CIRCUIT_THRESHOLD,
+	defaultIsFailure,
+} from "./circuit-breaker.ts";
+export type {
+	CircuitBreakerOptions,
+	CircuitState,
+	CircuitStateChange,
+} from "./circuit-breaker.ts";
+
 export { composeSignal, deadlineGuard, timeoutGuard } from "./guards.ts";
 export type { DeadlineGuardOptions, TimeoutGuardOptions } from "./guards.ts";
 
