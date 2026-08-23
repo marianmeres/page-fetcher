@@ -122,10 +122,17 @@ Branch: `master`
       kind plus a `reason` detail keeps all four body-absence causes regular; using
       `unsupported-type` would force `retainBody: false` and HEAD to invent different
       kinds for the identical condition.
-  12. **One test file beyond the 12-file matrix:** `tests/internal.test.ts`, covering
-      `ensureRequestId` and `createBodyResult`. They are the single enforcement point of
-      the id-generation and body contracts, so they get direct tests rather than being
-      exercised only through adapters.
+  12. **Two test files beyond the 12-file matrix:** `tests/internal.test.ts` (covers
+      `ensureRequestId` and `createBodyResult` — the single enforcement point of the id
+      and body contracts) and `tests/fixtures.test.ts` (smoke-tests the fixture server
+      itself, so a later adapter failure bisects to "adapter" and not "fixture").
+  13. **Three fixture routes beyond [06](./06-testing-docs-tooling.md) #3's table:**
+      `/redirect-status/:code?to=` (301/302/303 vs 307/308 method-rewrite and
+      body-replay cases), `/redirect-bad-location` (a `Location` that fails `new URL()`,
+      which the adapter must treat as a final response) and `/counter?token=` (reads the
+      per-token hit counters back, for the cache layer's "no second network hit"
+      assertions). Every route is served on both origins, since the two servers share
+      one handler.
 
   **Still open (backlog tasks only, not needed for the sprint):** circuit-breaker
   default in `createFetcher` (OFF as spec'd vs ON for the crawler) — task 6/7;
