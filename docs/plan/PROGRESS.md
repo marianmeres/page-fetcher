@@ -58,7 +58,7 @@ browser subsystem, and the cache — see the backlog.
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ✅     |
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ✅     |
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ✅     |
-| 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ⬜     |
+| 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ✅     |
 | 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ⬜     |
 | 17   | Pre-release checks (NO publish without explicit owner green-light): PRE_RELEASE_DOCS_UPDATE checklist, `deno publish --dry-run`, scratch-dir `npm i` smoke of the three subpath imports under Node                                                                                      | [06](./06-testing-docs-tooling.md) #12                                                      | ⬜     |
 
@@ -545,6 +545,45 @@ browser subsystem, and the cache — see the backlog.
   a directory that does not exist. The real path is
   `/Users/mm/projects/@marianmeres/agents/mm-local-docs/CLAUDE_TEMPLATE.md`, which is what
   this task used. The fix belongs in `agents/mm-local-docs`.
+
+- **2026-08-23 (backlog task 15 — human docs)** — `README.md` and `API.md`, written per
+  the [human documentation guide](/Users/mm/projects/@marianmeres/agents/mm-local-docs/HUMAN_DOCUMENTATION_GUIDE.md).
+  Every item [06](./06-testing-docs-tooling.md) #7 mandates is in: the badge trio, the
+  three install forms plus the "a browser is never installed with this package" note, the
+  non-2xx blockquote, the resource-blocking loud note, the disposal/zombie contract, both
+  required recipes (§5.3 adapter routing, §8 backing the cache), the logger section and
+  the contact-URL note for the default UA. Four calls:
+
+  63. **Function headings in `API.md` are `name()`, not `name(options?)`** — the clog
+      precedent, adopted for a concrete reason: GitHub's slugger turns
+      `createFetcher(options?)` into `#createfetcheroptions`, which is _also_ the slug of
+      the `CreateFetcherOptions` type heading. Same collision for all three guards. The
+      first heading wins the anchor and the second silently gets `-1`, so every "see the
+      options type" link would have landed on the function instead. Slugs are now unique
+      across the file, and a link check over both files reports zero dangling anchors.
+  64. **`API.md` documents the whole exported surface, browser internals included**
+      (`applyWait`, `browserErrorFrom`, `normalizeWait`, the pool, the exit hooks, the
+      charset/content-type/read-body helpers). They are exported from the `./adapters`
+      barrel, and an export that no reference documents is worse than one that does — a
+      custom-driver or custom-adapter author needs exactly these. Where the JSDoc already
+      argued a design point, the reference states the conclusion and the reason in one
+      line rather than restating the essay.
+  65. **The README ran past #7's "≲ 250 lines" (~340).** The mandated content is eight
+      sections and two full recipes; the filesystem-backed `CacheStore` alone is 30 lines
+      and is the entire point of the §8 recipe (a sketch that does not compile teaches the
+      `Headers`/`Uint8Array` traps to nobody). Everything exhaustive still went to
+      `API.md`, which is the rule the line count was standing in for.
+  66. **Every fenced `ts` example in both files was type-checked** — extracted to
+      standalone modules and run through `deno check` against the local barrels via the
+      `deno.json` self-mappings (decision 57). It found two real defects: a missing import
+      in the logging example and the implicitly-`any` event handlers that followed from
+      it. The three fences that import `playwright`/`puppeteer` are exempt, exactly as
+      decision 58 exempts their JSDoc equivalents. This was a one-off verification, not a
+      standing gate: wiring it into `deno task doc:lint` would mean a new script in
+      `scripts/`, which is the owner's call, not this task's.
+
+  `API.md` needs no packaging change: npmbuild's default `rootFiles` already lists it, so
+  it ships to npm from the next `deno task npm:build` onward.
 
 ## How to resume (for a fresh conversation)
 
