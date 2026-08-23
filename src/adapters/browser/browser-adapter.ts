@@ -40,13 +40,14 @@ import type {
 	ObservabilityOptions,
 } from "../../types.ts";
 import { type BlockingOptions, compileRequestFilter } from "./blocking.ts";
-import type {
-	BrowserDriver,
-	DriverBrowser,
-	DriverContext,
-	DriverContextOptions,
-	DriverPage,
-} from "./driver.ts";
+import type { BrowserDriver, DriverContextOptions, DriverPage } from "./driver.ts";
+import {
+	type ContextLease,
+	type ContextProvider,
+	type ContextStrategy,
+	createContextPool,
+	poolShapeFor,
+} from "./pool.ts";
 import {
 	applyWait,
 	browserErrorFrom,
@@ -88,37 +89,6 @@ export type OnPageHook = (
 	page: unknown,
 	req: FetchRequest,
 ) => Promise<Record<string, unknown> | void> | Record<string, unknown> | void;
-
-/** A borrowed browsing context. The pool hands out this same shape. */
-export interface ContextLease {
-	/** The context to open pages on. */
-	context: DriverContext;
-	/**
-	 * Give it back. `broken: true` means the context may be compromised (its page
-	 * crashed, its browser died) and must not be handed to anyone else.
-	 */
-	release(opts?: { broken?: boolean }): void;
-}
-
-/**
- * Where the adapter gets its browsing contexts.
- *
- * The seam exists so the adapter never knows whether it is talking to the trivial
- * single-context source below or to a real pool.
- */
-export interface ContextProvider {
-	/**
-	 * Borrow a context. `contextOptions`, when given, asks for a **dedicated** context
-	 * created with exactly those options (a request whose headers differ cannot ride
-	 * along on a shared one).
-	 */
-	acquire(
-		signal?: AbortSignal,
-		contextOptions?: DriverContextOptions,
-	): Promise<ContextLease>;
-	/** Close everything. Idempotent. */
-	dispose(): Promise<void>;
-}
 
 /** Options of {@linkcode createBrowserAdapter}. */
 export interface BrowserAdapterOptions extends ObservabilityOptions, BlockingOptions {
@@ -164,9 +134,19 @@ export interface BrowserAdapterOptions extends ObservabilityOptions, BlockingOpt
 	captureFailedRequests?: boolean;
 	/** Cap on each captured list. Default {@linkcode DEFAULT_CAPTURE_LIMIT}. */
 	captureLimit?: number;
+	/** How contexts are shared between requests. Default `"pooled"`. */
+	contextStrategy?: ContextStrategy;
+	/** Concurrent contexts. Default `3`. Ignored by the `"shared"` strategy. */
+	poolSize?: number;
+	/** Pages a pooled context serves before it is replaced. Default `50`. */
+	maxPagesPerContext?: number;
+	/** How long a request waits for a free context. Default `30_000`. */
+	acquireTimeout?: number;
+	/** Register a process-exit hook that tears the browser down. Default `true`. */
+	exitHooks?: boolean;
 	/**
-	 * Where contexts come from. Defaults to a single lazily launched browser with one
-	 * shared context.
+	 * Where contexts come from. Defaults to a {@linkcode createContextPool} built from
+	 * the options above; inject your own to take the lifecycle over entirely.
 	 */
 	contexts?: ContextProvider;
 }
@@ -225,95 +205,6 @@ function raceAbort<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
 }
 
 /**
- * One lazily launched browser with one shared context — the default provider.
- *
- * Enough for a single-threaded caller and for every unit test; `createContextPool`
- * replaces it when N contexts, recycling and crash recovery are wanted.
- */
-export function createSingleContextProvider(opts: {
-	driver: BrowserDriver;
-	contextOptions?: DriverContextOptions;
-	logger?: ObservabilityOptions["logger"];
-}): ContextProvider {
-	const { driver, contextOptions, logger } = opts;
-	// promises, not handles: concurrent acquires must share one launch and one context
-	// creation, and `x ??= await y` does not do that — every racer passes the check
-	let launching: Promise<DriverBrowser> | undefined;
-	let creating: Promise<DriverContext> | undefined;
-	let browser: DriverBrowser | undefined;
-	let shared: DriverContext | undefined;
-	let disposed = false;
-
-	/** Forget a dead generation, so the next acquire launches a fresh one. */
-	function reset(): void {
-		launching = undefined;
-		creating = undefined;
-		browser = undefined;
-		shared = undefined;
-	}
-
-	function ensureBrowser(): Promise<DriverBrowser> {
-		return (launching ??= (async () => {
-			logger?.debug(`[browser] launching ${driver.name}`);
-			const launched = await driver.launch();
-			browser = launched;
-			// the handles are worthless once the process is gone
-			launched.onDisconnected(() => {
-				logger?.warn(`[browser] ${driver.name} disconnected`);
-				if (browser === launched) reset();
-			});
-			return launched;
-		})().catch((e: unknown) => {
-			// a failed launch must not be memoized as the answer forever
-			launching = undefined;
-			throw e;
-		}));
-	}
-
-	function ensureShared(): Promise<DriverContext> {
-		return (creating ??= ensureBrowser()
-			.then((live) => live.newContext(contextOptions ?? {}))
-			.then((context) => (shared = context))
-			.catch((e: unknown) => {
-				creating = undefined;
-				throw e;
-			}));
-	}
-
-	return {
-		async acquire(signal, requestOptions): Promise<ContextLease> {
-			if (disposed) throw new Error("Browser context provider is disposed");
-			if (signal?.aborted) {
-				throw signal.reason ?? new DOMException("Aborted", "AbortError");
-			}
-
-			if (requestOptions) {
-				logger?.debug("[browser] dedicated context for per-request options");
-				const live = await ensureBrowser();
-				const context = await live.newContext(requestOptions);
-				return {
-					context,
-					release: () => void context.close().catch(() => {}),
-				};
-			}
-
-			return { context: await ensureShared(), release: () => {} };
-		},
-
-		async dispose(): Promise<void> {
-			if (disposed) return;
-			disposed = true;
-			logger?.debug("[browser] disposing");
-			// let anything mid-launch land first, or we leak the browser it produces
-			await Promise.allSettled([launching, creating]);
-			await shared?.close().catch(() => {});
-			await browser?.close().catch(() => {});
-			reset();
-		},
-	};
-}
-
-/**
  * Create the browser adapter.
  *
  * @example
@@ -341,6 +232,9 @@ export function createBrowserAdapter(options: BrowserAdapterOptions): Adapter {
 		captureConsoleErrors = true,
 		captureFailedRequests = true,
 		captureLimit = DEFAULT_CAPTURE_LIMIT,
+		contextStrategy = "pooled",
+		acquireTimeout,
+		exitHooks,
 		logger,
 	} = options;
 
@@ -386,12 +280,17 @@ export function createBrowserAdapter(options: BrowserAdapterOptions): Adapter {
 	};
 	const baseFilter = compileRequestFilter(baseFilterOptions);
 
-	const contexts = options.contexts ??
-		createSingleContextProvider({
-			driver,
-			contextOptions: baseContextOptions,
-			logger,
-		});
+	const contexts = options.contexts ?? createContextPool({
+		driver,
+		...poolShapeFor(contextStrategy, {
+			size: options.poolSize,
+			maxPagesPerContext: options.maxPagesPerContext,
+		}),
+		acquireTimeout,
+		exitHooks,
+		contextOptions: baseContextOptions,
+		logger,
+	});
 
 	/**
 	 * Context options this request needs on top of the adapter's.
@@ -492,7 +391,22 @@ export function createBrowserAdapter(options: BrowserAdapterOptions): Adapter {
 		};
 
 		logger?.debug(`[${rid}] browser GET ${url}`);
-		const lease = await contexts.acquire(req.signal, contextOptions);
+		let lease: ContextLease;
+		try {
+			lease = await contexts.acquire(req.signal, contextOptions);
+		} catch (e) {
+			// a launch failure, an acquire timeout or a disposed pool is a fetch
+			// outcome like any other — it must never leave here as a raw Error
+			throw withAttempts(
+				browserErrorFrom(e, {
+					url,
+					requestId,
+					signal: req.signal,
+					phase: "acquiring a browser context",
+				}),
+				1,
+			);
+		}
 		let page: DriverPage | undefined;
 		let broken = false;
 		const onAbort = () => void page?.close().catch(() => {});

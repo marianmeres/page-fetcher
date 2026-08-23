@@ -61,17 +61,38 @@ export type {
 
 export {
 	createBrowserAdapter,
-	createSingleContextProvider,
 	DEFAULT_BROWSER_MAX_REDIRECTS,
 	DEFAULT_CAPTURE_LIMIT,
 	DEFAULT_MAX_DOM_BYTES,
 } from "./adapters/browser/browser-adapter.ts";
 export type {
 	BrowserAdapterOptions,
-	ContextLease,
-	ContextProvider,
 	OnPageHook,
 } from "./adapters/browser/browser-adapter.ts";
+
+export {
+	createContextPool,
+	DEFAULT_ACQUIRE_TIMEOUT,
+	DEFAULT_MAX_PAGES_PER_CONTEXT,
+	DEFAULT_POOL_SIZE,
+	poolShapeFor,
+} from "./adapters/browser/pool.ts";
+export type {
+	ContextLease,
+	ContextPool,
+	ContextProvider,
+	ContextStrategy,
+	PoolLease,
+	PoolOptions,
+	PoolStats,
+} from "./adapters/browser/pool.ts";
+
+export {
+	detectExitHookHost,
+	killProcess,
+	registerExitHook,
+} from "./adapters/browser/exit-hook.ts";
+export type { ExitEvent, ExitHookHost } from "./adapters/browser/exit-hook.ts";
 
 export {
 	compileRequestFilter,

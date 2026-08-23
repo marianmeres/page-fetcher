@@ -539,7 +539,7 @@ Deno.test("lifecycle: a dead browser is relaunched on the next fetch", async () 
 	await adapter.dispose?.();
 });
 
-Deno.test("lifecycle: the browser launches lazily, once, for concurrent requests", async () => {
+Deno.test("lifecycle: the browser launches lazily and only once", async () => {
 	const { adapter, driver } = adapterOver({ routes: { [URL_A]: {} } });
 	assertEquals(driver.stats.launches, 0);
 	await Promise.all([
@@ -547,10 +547,37 @@ Deno.test("lifecycle: the browser launches lazily, once, for concurrent requests
 		adapter.fetch({ url: URL_A }),
 		adapter.fetch({ url: URL_A }),
 	]);
+	// one browser, one context per concurrent request (default pool size 3)
 	assertEquals(driver.stats.launches, 1);
-	assertEquals(driver.stats.contexts, 1);
+	assertEquals(driver.stats.contexts, 3);
 	assertEquals(driver.stats.pages, 3);
 	assertEquals(driver.stats.closedPages, 3);
+	await adapter.dispose?.();
+});
+
+Deno.test('lifecycle: the "shared" strategy keeps one context for everything', async () => {
+	const { adapter, driver } = adapterOver({ routes: { [URL_A]: {} } }, {
+		contextStrategy: "shared",
+	});
+	await Promise.all([
+		adapter.fetch({ url: URL_A }),
+		adapter.fetch({ url: URL_A }),
+		adapter.fetch({ url: URL_A }),
+	]);
+	assertEquals(driver.stats.contexts, 1);
+	assertEquals(driver.stats.pages, 3);
+	await adapter.dispose?.();
+});
+
+Deno.test("lifecycle: a failed launch surfaces as a retryable browser error", async () => {
+	const { adapter } = adapterOver({ failLaunches: 1, routes: { [URL_A]: {} } });
+	const err = await assertRejects(() => adapter.fetch({ url: URL_A }), PageFetchError);
+	assertEquals(err.kind, "browser");
+	assertEquals(err.retryable, true);
+	assertEquals(err.attempts, 1);
+	assert(err.message.includes("acquiring a browser context"));
+	// the failure was not memoized — the next fetch relaunches and works
+	assertEquals((await adapter.fetch({ url: URL_A })).ok, true);
 	await adapter.dispose?.();
 });
 

@@ -53,7 +53,7 @@ browser subsystem, and the cache — see the backlog.
 | 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ✅     |
 | 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ✅     |
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ✅     |
-| 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ⬜     |
+| 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ✅     |
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ⬜     |
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ⬜     |
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ⬜     |
@@ -344,6 +344,56 @@ browser subsystem, and the cache — see the backlog.
   launch/context/page setup, so a cold first fetch says so honestly; a `"document"`
   request is never blocked whatever the patterns say; and per-request blocking options
   **replace** the adapter's rather than merging.
+
+- **2026-08-23 (backlog task 10 — context pool + exit hooks)** — the remaining doc
+  [04](./04-browser-adapter.md) open questions are resolved as proposed: `poolSize: 3`,
+  `maxPagesPerContext: 50`, `acquireTimeout: 30_000`, and `"per-request"` **does** stay
+  capped at `poolSize` (an uncapped mode is a footgun, not a feature). Calls made while
+  building it:
+
+  41. **One implementation, three strategies.** `createSingleContextProvider` (task 9) is
+      deleted, not kept alongside the pool: `"shared"` is exactly `size: 1` +
+      `maxPagesPerContext: Infinity`, and `"per-request"` is `maxPagesPerContext: 1`, so
+      `poolShapeFor()` turns the strategy into two numbers and the pool covers all three.
+      `ContextLease`/`ContextProvider` moved with it into `pool.ts`, which is their real
+      owner and removes the import cycle the task-9 placement would have created.
+  42. **Acquire is a condition-variable loop, not a hand-off queue.** Every waiter
+      re-checks the pool state after being woken, which is what makes the crash path
+      simple: the crash wakes everyone rather than resolving specific slots to specific
+      callers. A re-queued waiter goes to the **front**, so a caller that loses a race
+      for the slot it was woken for cannot starve behind arrivals that showed up after
+      it, and a fresh arrival never jumps an existing queue.
+  43. **A crash never rejects waiters — a failed relaunch does.** The doc's wording
+      ("reject all current waiters if relaunch fails") is implemented per waiter: each
+      woken waiter re-tries, which relaunches through the single-flight, and fails with
+      that relaunch's error if it cannot come back. Same observable contract, no separate
+      "reject everyone" bookkeeping to get wrong. A failed launch is never memoized, so
+      the next request tries again.
+  44. **The pool throws plain errors; the adapter classifies them.** An acquire timeout
+      is `Error("Timed out …")` → `kind: "timeout"`, dispose and aborts are
+      `DOMException(AbortError)` → `kind: "aborted"`, a launch failure → `kind: "browser"`,
+      all via `browserErrorFrom`. Keeping `PageFetchError` construction in the adapter is
+      what lets the error carry the URL and `requestId` the pool has never heard of.
+      **This closed a task-9 defect:** `contexts.acquire()` sat outside the adapter's
+      `try`/`catch`, so a launch failure escaped as a raw `Error`, contradicting decision
+      14 ("the adapter never leaks a raw platform error"). It is now wrapped.
+  45. **The exit hook takes an injectable `ExitHookHost`.** Feature detection picks Deno
+      (signal listeners + `unload`) or Node (`process`), but the register → run →
+      unregister → **re-raise** protocol is unit-tested against a fake host, so no test
+      ever sends a real signal. Re-raise prefers the true signal (`Deno.kill` /
+      `process.kill`, which preserves other handlers), and falls back to exiting with the
+      conventional `128 + n` — because `Deno.kill` needs `--allow-run`, and a transport
+      library has no business demanding that permission. The re-raise itself is
+      mandatory, not optional: installing a SIGINT listener suppresses default
+      termination on both runtimes, so skipping it would break Ctrl-C.
+  46. **Per-request dedicated contexts live outside the pool's size accounting** — they
+      are rare by construction (decision 35) and blocking them behind pool capacity would
+      make a stray header able to deadlock a saturated pool. They are still closed on
+      `dispose()` if one is out.
+
+  The "never wedge" invariant is now four named tests — timeout, signal, dispose, failed
+  relaunch — plus a fifth for the mid-fetch crash, all against the fake driver in the
+  default browserless run.
 
 ## How to resume (for a fresh conversation)
 
