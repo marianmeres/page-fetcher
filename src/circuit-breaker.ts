@@ -19,7 +19,8 @@
  */
 
 import { PageFetchError } from "./errors.ts";
-import { ensureRequestId, safeEmit, shortId } from "./internal.ts";
+import { safeEmit } from "./events.ts";
+import { ensureRequestId, shortId } from "./internal.ts";
 import type {
 	FetchFn,
 	FetchLayer,

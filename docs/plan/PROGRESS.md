@@ -50,7 +50,7 @@ browser subsystem, and the cache — see the backlog.
 | Rank | Task                                                                                                                                                                                                                                                                                    | Source                                                                                      | Status |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------ |
 | 6    | Circuit breaker: `src/circuit-breaker.ts` (per-instance `Map`, logical-outcome counting, half-open single probe, map hygiene, `circuit-open` rejections) + FakeTime tests                                                                                                               | [03](./03-resilience-and-composition.md) #5, [06](./06-testing-docs-tooling.md) #2          | ✅     |
-| 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ⬜     |
+| 7    | Composition: `src/compose.ts`, `src/events.ts` (+ `safeEmit`), `src/fetcher.ts` (`createFetcher`, adapter routing, dispose + `Symbol.asyncDispose`, event/logger bridging) + `tests/fetcher.test.ts`. Resolves the 01/03 event-granularity call first (see overview completeness check) | [03](./03-resilience-and-composition.md) #1/#2/#6/#7/#10; [01](./01-public-contracts.md) #3 | ✅     |
 | 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ⬜     |
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ⬜     |
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ⬜     |
@@ -174,10 +174,8 @@ browser subsystem, and the cache — see the backlog.
       shared `settleWithFakeTime` helper steps timer-by-timer via `nextAsync()`
       instead — use it for anything involving sleeps or deadlines.
 
-  **Still open (backlog tasks only, not needed for the sprint):** circuit-breaker
-  default in `createFetcher` (OFF as spec'd vs ON for the crawler) — task 6/7;
-  serve-stale-on-circuit-open / `stale-if-error` — v2 candidate; `Retry-After` on the
-  `throwOnHttpError` path (needs headers reachable from an `http`-kind error) — task 7;
+  **Still open (backlog tasks only, not needed for the sprint):**
+  serve-stale-on-circuit-open / `stale-if-error` — v2 candidate;
   browser defaults bundle — tasks 8–10; cache defaults bundle — task 12; leak-test
   rigor and the first real driver for the flagged suite — task 11; the stale
   `CLAUDE_TEMPLATE.md` path in `agents/mm-local-docs` — task 14. Also noted for task
@@ -209,6 +207,46 @@ browser subsystem, and the cache — see the backlog.
       the cooldown runs, `{ host, state: "half-open" }` (no `until`) for requests that
       arrive while the single probe is in flight. Same `kind: "circuit-open"`,
       `attempts: 0`, `retryable: false` for both.
+
+- **2026-08-23 (backlog task 7 — composition, events, `createFetcher`)** — the
+  event-granularity call was resolved first, as the task requires, and it moved one
+  layer:
+
+  24. **Composition order, final** (deviates from [03](./03-resilience-and-composition.md)
+      #1's `cache → breaker → retry → events → guards → routing`), outermost first:
+      `cache → circuit breaker → events → [http error guard] → deadline guard → retry →
+      timeout guard → routing`. Doc 03 put the events layer _below_ retry so its
+      `onRequest`/`onResponse`/`onError` would fire per attempt; decision 3 had already
+      ratified doc 01's reading instead — `onResponse`/`onError` are **terminal**
+      (exactly one per logical request). A terminal emitter has to sit _above_ the
+      attempt loop, so it moved up. It stays _below_ the breaker so refusals emit
+      nothing but the `onCircuitOpen` transition, and _above_ the deadline guard so a
+      deadline failure is still reported as `onError`.
+  25. **The retry layer is always composed; `retry: false` means `attempts: 1`.** Retry
+      owns the attempt loop and therefore the per-attempt `onRequest`/`onRetry` events
+      (decision 18) — dropping the layer would silently drop those events for anyone who
+      turned retries off. One extra frame that never sleeps is the cheaper trade.
+  26. **Circuit breaker default → OFF** (the doc 03 open question, resolved as spec'd).
+      It is the one layer that refuses requests the caller asked for; a crawler enables
+      it with `circuitBreaker: true`, a script fetching one page has no use for it.
+  27. **`throwOnHttpError` is `httpErrorGuard`, placed above retry** — which resolves the
+      other open question (`Retry-After` on the throwing path): retry keeps seeing the
+      raw `ok: false` **result**, so a server-directed backoff still applies, and the
+      throw happens once at the end. The whole result rides on `details.result`, so the
+      headers and the (still readable) body are not lost — no new fields on the frozen
+      error shape.
+  28. **`safeEmit` re-homed from `internal.ts` to `src/events.ts` and made public**
+      (decision 18 called for the move). Anyone writing a custom layer needs the same
+      "a handler must not break the fetch" guarantee.
+
+  Smaller calls, recorded so they are not re-litigated: the deadline is anchored exactly
+  once, in `createFetcher`'s outer wrapper, so no layer can restart the clock; an unknown
+  adapter name throws a `TypeError`, not a `PageFetchError` (a config error is not a
+  fetch outcome, and both retry and the breaker pass non-`PageFetchError`s through
+  untouched); `dispose()` memoizes its promise rather than just flagging, so a second
+  caller awaits real completion, and a post-dispose `fetch()` rejects with a plain
+  `Error`; fetcher-level `headers`/`userAgent` merge case-insensitively under the
+  per-request ones and apply to every adapter.
 
 ## How to resume (for a fresh conversation)
 

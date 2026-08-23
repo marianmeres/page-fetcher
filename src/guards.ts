@@ -1,11 +1,13 @@
 /**
- * The control-flow guards: per-attempt timeout and total deadline.
+ * The wrapper-level guards: per-attempt timeout, total deadline, and the non-2xx
+ * throwing policy.
  *
  * These are true `(next: FetchFn) => FetchFn` layers, unlike the stream guards
  * (`maxBytes`, content-type policy, charset), which must run inside an adapter.
- * Placement matters: the timeout guard sits **below** retry so it re-arms on every
- * attempt, while the deadline guard sits **above** it, because the deadline spans
- * attempts and must also bound the sleeps between them.
+ * Placement matters, and each guard wants a different spot: the timeout guard sits
+ * **below** retry so it re-arms on every attempt, the deadline guard sits **above** it
+ * because the deadline spans attempts and must also bound the sleeps between them, and
+ * {@linkcode httpErrorGuard} sits above retry as well — see its own note for why.
  *
  * @module
  */
@@ -162,5 +164,53 @@ export function deadlineGuard(options: DeadlineGuardOptions = {}): FetchLayer {
 		} finally {
 			clearTimeout(timer);
 		}
+	};
+}
+
+/** Options of {@linkcode httpErrorGuard}. */
+export interface HttpErrorGuardOptions {
+	/** Silent by default. */
+	logger?: Logger;
+}
+
+/**
+ * Turn a non-2xx result into a thrown `PageFetchError` (`kind: "http"`).
+ *
+ * Off unless you ask for it: a 404 is data a crawler wants recorded, not an exception
+ * to handle. This is the opt-in for callers who would rather write `try`/`catch` — it
+ * is the only place in the package where a non-2xx becomes a throw.
+ *
+ * **Place it above the retry layer.** There, retry still sees the raw `ok: false`
+ * result and can honor its `Retry-After` header; below retry it would see an `http`
+ * error instead, and a server-directed backoff would silently degrade into the local
+ * one. The whole result — headers and (still readable) body included — is carried on
+ * `details.result`, so throwing costs the caller no information.
+ *
+ * @example
+ * ```ts
+ * const fetchFn = compose([httpErrorGuard(), createRetry()], adapter.fetch);
+ * ```
+ */
+export function httpErrorGuard(options: HttpErrorGuardOptions = {}): FetchLayer {
+	const { logger } = options;
+
+	return (next: FetchFn): FetchFn =>
+	async (input: FetchRequest): Promise<FetchResult> => {
+		const res = await next(ensureRequestId(input));
+		if (res.ok) return res;
+
+		logger?.debug(`[${shortId(res.requestId)}] throwing on HTTP ${res.status}`);
+		throw new PageFetchError({
+			kind: "http",
+			url: res.url,
+			finalUrl: res.finalUrl,
+			status: res.status,
+			requestId: res.requestId,
+			attempts: res.attempts,
+			message: `HTTP ${res.status}${
+				res.statusText ? ` ${res.statusText}` : ""
+			} fetching ${res.finalUrl}`,
+			details: { result: res },
+		});
 	};
 }

@@ -27,8 +27,19 @@ export type {
 	CircuitStateChange,
 } from "./circuit-breaker.ts";
 
-export { composeSignal, deadlineGuard, timeoutGuard } from "./guards.ts";
-export type { DeadlineGuardOptions, TimeoutGuardOptions } from "./guards.ts";
+export { compose } from "./compose.ts";
+
+export { createEventsLayer, safeEmit } from "./events.ts";
+
+export { createFetcher } from "./fetcher.ts";
+export type { CreateFetcherOptions, Fetcher } from "./fetcher.ts";
+
+export { composeSignal, deadlineGuard, httpErrorGuard, timeoutGuard } from "./guards.ts";
+export type {
+	DeadlineGuardOptions,
+	HttpErrorGuardOptions,
+	TimeoutGuardOptions,
+} from "./guards.ts";
 
 export { createRetry, defaultIsRetryable, parseRetryAfter } from "./retry.ts";
 export type { BackoffStrategy, RetryOptions } from "./retry.ts";

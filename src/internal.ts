@@ -6,7 +6,7 @@
  */
 
 import { PageFetchError } from "./errors.ts";
-import type { BodyAbsentReason, FetchRequest, Logger } from "./types.ts";
+import type { BodyAbsentReason, FetchRequest } from "./types.ts";
 
 /** A request that is guaranteed to carry a correlation id. */
 export type IdentifiedRequest = FetchRequest & { requestId: string };
@@ -147,24 +147,4 @@ export function withAttempts(err: PageFetchError, attempts: number): PageFetchEr
 		cause: err.cause,
 		details: err.details,
 	});
-}
-
-/**
- * Call an event handler without ever letting it affect the fetch.
- *
- * Handlers are synchronous fire-and-forget: a returned promise is not awaited, and a
- * throwing handler is reported via `logger.warn` (when one was injected) and otherwise
- * swallowed.
- */
-export function safeEmit<A extends unknown[]>(
-	handler: ((...args: A) => void) | undefined,
-	logger: Logger | undefined,
-	...args: A
-): void {
-	if (!handler) return;
-	try {
-		handler(...args);
-	} catch (e) {
-		logger?.warn(`event handler threw: ${e}`);
-	}
 }

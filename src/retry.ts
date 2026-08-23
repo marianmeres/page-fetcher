@@ -11,7 +11,8 @@
  */
 
 import { defaultRetryable, PageFetchError } from "./errors.ts";
-import { ensureRequestId, safeEmit, shortId, withAttempts } from "./internal.ts";
+import { safeEmit } from "./events.ts";
+import { ensureRequestId, shortId, withAttempts } from "./internal.ts";
 import type {
 	FetchFn,
 	FetchLayer,
