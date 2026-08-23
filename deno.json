@@ -1,13 +1,18 @@
 {
 	"name": "@marianmeres/page-fetcher",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"exports": {
 		".": "./src/mod.ts",
 		"./adapters": "./src/adapters.ts",
 		"./cache": "./src/cache.ts"
 	},
 	"publish": {
-		"exclude": [".*", "tests/**", "example/**", "scripts/gen-example-*.ts"]
+		"exclude": [
+			".*",
+			"tests/**",
+			"example/**",
+			"scripts/gen-example-*.ts"
+		]
 	},
 	"tasks": {
 		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser tests/",
@@ -40,7 +45,9 @@
 		"@std/path": "jsr:@std/path@^1.1.6",
 		"@std/testing": "jsr:@std/testing@^1.0.18"
 	},
-	"exclude": ["example/dist"],
+	"exclude": [
+		"example/dist"
+	],
 	"fmt": {
 		"useTabs": true,
 		"lineWidth": 90,
