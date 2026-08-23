@@ -19,8 +19,16 @@ import { CACHE_ENTRY_VERSION, type CachedEntry } from "./types.ts";
  *
  * @example
  * ```ts
- * const { meta, body } = serializeCachedEntry(entry);
- * db.query("insert into cache (key, meta, body) values (?, ?, ?)", [key, meta, body]);
+ * import { serializeCachedEntry } from "@marianmeres/page-fetcher/cache";
+ * import type { CacheStore } from "@marianmeres/page-fetcher/cache";
+ *
+ * // one half of a filesystem-backed store (hash the key yourself if it must be a
+ * // filename — these helpers deliberately do no hashing)
+ * const set: CacheStore["set"] = async (key, entry) => {
+ * 	const { meta, body } = serializeCachedEntry(entry);
+ * 	await Deno.writeTextFile(`./cache/${key}.json`, meta);
+ * 	await Deno.writeFile(`./cache/${key}.bin`, body);
+ * };
  * ```
  */
 export function serializeCachedEntry(

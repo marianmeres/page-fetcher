@@ -56,7 +56,7 @@ browser subsystem, and the cache — see the backlog.
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ✅     |
 | 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ✅     |
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ✅     |
-| 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ⬜     |
+| 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ✅     |
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ⬜     |
 | 15   | Human docs: `README.md` (badges, §5.3 routing + §8 cache-backing recipes, resource-blocking + non-2xx loud notes, logger section, UA contact note) + complete `API.md`                                                                                                                  | [06](./06-testing-docs-tooling.md) #7                                                       | ⬜     |
 | 16   | Promote `tmp/page-fetcher-DESIGN.md` → `docs/design.md` with the accepted-deviations list (finalize once backlog decisions are recorded)                                                                                                                                                | [06](./06-testing-docs-tooling.md) #10                                                      | ⬜     |
@@ -485,6 +485,40 @@ browser subsystem, and the cache — see the backlog.
   freshness parsing, heuristic freshness, `stale-while-revalidate`, `stale-if-error`, a
   byte-budget cap on the memory store, and any background TTL sweeper (a library owning a
   `setInterval` is exactly what Deno's test sanitizers exist to catch).
+
+- **2026-08-23 (backlog task 13 — JSDoc pass)** — [06](./06-testing-docs-tooling.md) #11
+  had no open questions, and most of it was already true: docs were written alongside the
+  implementation, so `deno doc --lint` found only three missing blocks and `deno publish
+  --dry-run` had been passing all along (no slow types). What the pass actually bought was
+  a **second, sharper gate**:
+
+  56. **`deno check --doc` joins `deno doc --lint` in `deno task doc:lint`.** `--lint`
+      only asks "is there a doc block?"; `--doc` type-checks the code inside every
+      `@example`. It immediately found that **18 of the 25 examples did not compile** —
+      undeclared `adapter`, `fetcher`, `log`, `requeue`, `bytes`, missing imports
+      throughout. A doc example nobody compiles is a doc example that silently rots, and
+      these are the first thing a reader copies. All 25 now type-check.
+  57. **`deno.json` `imports` gained self-mappings** (`@marianmeres/page-fetcher`,
+      `/adapters`, `/cache` → the local barrels), so examples can be written with the
+      import lines a consumer would actually type instead of relative paths that are
+      meaningless outside this repo. `deno publish --dry-run` and the npm build are both
+      still clean with them.
+  58. **The three fences that import `playwright`/`puppeteer` are tagged
+      `` ```ts ignore ``.** Type-checking them would mean a compile-time dependency on
+      the very packages the structural `BrowserDriver` exists to avoid (and would download
+      both on every doc check). Skipping exactly those and no others keeps the gate
+      meaningful.
+  59. **`toPageExpression` is now exported from the adapters barrel.** Its example needed
+      an importable spelling, and it earns the slot on its own: it encodes the
+      expression-vs-function trap that produced task 11's bug, which is precisely what a
+      custom-driver author needs to know about `waitForFunction`.
+
+  **Bug found by the npm build, fixed here:** `onPage`'s return value was folded in as
+  `(await hook(...)) ?? undefined`, and `??` does **not** narrow a `void` union under
+  `tsc`'s strict mode — so `deno task npm:build` failed at `npx tsc` (TS2322) while
+  `deno check` was perfectly happy. `deno check` and `tsc` are not the same type checker,
+  and only the npm path runs the stricter one; noted for task 17, where the npm build is
+  part of the checklist. The awaited value is now widened to `unknown` first.
 
 ## How to resume (for a fresh conversation)
 

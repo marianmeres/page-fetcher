@@ -6,7 +6,7 @@
  * dependency promise stays literally true. The caller installs Playwright and injects
  * it:
  *
- * ```ts
+ * ```ts ignore
  * import * as playwright from "playwright";
  * import { playwrightDriver } from "@marianmeres/page-fetcher/adapters";
  *
@@ -263,7 +263,7 @@ function describe(value: unknown): string {
  * with a message that names what was expected — not on the first fetch, minutes later.
  *
  * @example
- * ```ts
+ * ```ts ignore
  * import * as playwright from "playwright";
  *
  * const driver = playwrightDriver(playwright, {

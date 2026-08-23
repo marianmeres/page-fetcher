@@ -112,6 +112,7 @@ export {
 	DEFAULT_NETWORK_IDLE,
 	DEFAULT_WAIT,
 	normalizeWait,
+	toPageExpression,
 } from "./adapters/browser/wait.ts";
 export type {
 	ApplyWaitOptions,

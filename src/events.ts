@@ -66,10 +66,13 @@ export function safeEmit<A extends unknown[]>(
  *
  * @example
  * ```ts
- * const fetchFn = compose(
- * 	[createEventsLayer({ events: { onResponse: (r) => log(r.status) } }), createRetry()],
- * 	adapter.fetch,
- * );
+ * import { compose, createEventsLayer, createRetry } from "@marianmeres/page-fetcher";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
+ * const fetchFn = compose([
+ * 	createEventsLayer({ events: { onResponse: (r) => console.log(r.status) } }),
+ * 	createRetry(),
+ * ], createHttpAdapter().fetch);
  * ```
  */
 export function createEventsLayer(options: ObservabilityOptions = {}): FetchLayer {

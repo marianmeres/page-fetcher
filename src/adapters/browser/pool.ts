@@ -133,6 +133,17 @@ export interface PoolStats {
 
 /** What {@linkcode createContextPool} returns. */
 export interface ContextPool extends ContextProvider {
+	/**
+	 * Lease a context, waiting for a free slot when the pool is saturated.
+	 *
+	 * Passing `contextOptions` asks for a **dedicated** one-off context, created and
+	 * closed with this lease and accounted outside the pool's size (see the module note
+	 * on why per-request options cannot share a pooled context).
+	 *
+	 * @param signal Cancels the wait. The returned promise never stays pending past an
+	 * abort, an acquire timeout, `dispose()`, or a failed relaunch.
+	 * @param contextOptions Context-affecting options for a dedicated context.
+	 */
 	acquire(
 		signal?: AbortSignal,
 		contextOptions?: DriverContextOptions,
@@ -184,14 +195,20 @@ function disposedError(): DOMException {
  *
  * @example
  * ```ts
+ * import { createContextPool } from "@marianmeres/page-fetcher/adapters";
+ * import type { BrowserDriver } from "@marianmeres/page-fetcher/adapters";
+ *
+ * declare const driver: BrowserDriver;
+ *
  * const pool = createContextPool({ driver, size: 3, maxPagesPerContext: 50 });
- * const lease = await pool.acquire(signal);
+ * const lease = await pool.acquire();
  * try {
  * 	const page = await lease.context.newPage();
- * 	// …
+ * 	await page.close();
  * } finally {
  * 	lease.release();
  * }
+ * await pool.dispose();
  * ```
  */
 export function createContextPool(options: PoolOptions): ContextPool {

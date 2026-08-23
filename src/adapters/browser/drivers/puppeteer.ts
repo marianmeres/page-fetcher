@@ -5,7 +5,7 @@
  * it — so importing this package never pulls a browser in. The caller installs
  * Puppeteer and injects it:
  *
- * ```ts
+ * ```ts ignore
  * import puppeteer from "puppeteer";
  * import { puppeteerDriver } from "@marianmeres/page-fetcher/adapters";
  *
@@ -260,7 +260,7 @@ function describe(value: unknown): string {
  * with a message that names what was expected — not on the first fetch, minutes later.
  *
  * @example
- * ```ts
+ * ```ts ignore
  * import puppeteer from "puppeteer";
  *
  * const driver = puppeteerDriver(puppeteer, {

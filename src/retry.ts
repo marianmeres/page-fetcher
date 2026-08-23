@@ -115,7 +115,12 @@ function rawBackoff(
  *
  * @example
  * ```ts
- * const fetchFn = createRetry({ attempts: 4, baseDelay: 250 })(adapter.fetch);
+ * import { createRetry } from "@marianmeres/page-fetcher";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
+ * const fetchFn = createRetry({ attempts: 4, baseDelay: 250 })(
+ * 	createHttpAdapter().fetch,
+ * );
  * ```
  */
 export function createRetry(options: RetryOptions = {}): FetchLayer {

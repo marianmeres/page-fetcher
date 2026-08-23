@@ -51,8 +51,11 @@ export interface MemoryCache extends CacheStore {
  *
  * @example
  * ```ts
+ * import { createFetcher } from "@marianmeres/page-fetcher";
+ * import { createMemoryCache } from "@marianmeres/page-fetcher/cache";
+ *
  * const store = createMemoryCache({ maxEntries: 200 });
- * const fetcher = createFetcher({ cache: { store, mode: "dev" } });
+ * await using fetcher = createFetcher({ cache: { store, mode: "dev" } });
  * ```
  */
 export function createMemoryCache(options: MemoryCacheOptions = {}): MemoryCache {

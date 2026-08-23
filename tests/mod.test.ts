@@ -141,6 +141,7 @@ Deno.test("adapters.ts exports exactly the documented runtime surface", () => {
 		"registerExitHook",
 		"sniffCharset",
 		"sniffMetaCharset",
+		"toPageExpression",
 	]);
 });
 

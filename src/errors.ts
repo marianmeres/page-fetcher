@@ -130,18 +130,25 @@ function defaultMessage(init: PageFetchErrorInit): string {
  *
  * @example
  * ```ts
+ * import { createFetcher, PageFetchError } from "@marianmeres/page-fetcher";
+ *
+ * const fetcher = createFetcher();
+ * const soon: string[] = [];
+ * const later: string[] = [];
+ *
  * try {
- * 	await fetcher.fetch({ url });
+ * 	await fetcher.fetch("https://example.com/");
  * } catch (e) {
- * 	if (PageFetchError.is(e)) {
- * 		if (e.kind === "circuit-open") scheduleLater(url);
- * 		else if (e.retryable) requeue(url);
- * 		else drop(url, e.message);
- * 	} else throw e;
+ * 	if (!PageFetchError.is(e)) throw e;
+ * 	// the whole host is fenced off — come back to it much later
+ * 	if (e.kind === "circuit-open") later.push(e.url);
+ * 	else if (e.retryable) soon.push(e.url);
+ * 	else console.warn(`dropped ${e.url}: ${e.message}`);
  * }
  * ```
  */
 export class PageFetchError extends Error {
+	/** Always `"PageFetchError"` — what {@linkcode PageFetchError.is} matches on. */
 	override readonly name = "PageFetchError";
 	/** What went wrong. Branch on this, never on the message. */
 	readonly kind: PageFetchErrorKind;
@@ -160,6 +167,12 @@ export class PageFetchError extends Error {
 	/** Kind-specific extras. */
 	readonly details?: Record<string, unknown>;
 
+	/**
+	 * Build an error.
+	 *
+	 * @param init Everything the error carries. `retryable` and `message` fall back to
+	 * the per-kind defaults ({@linkcode defaultRetryable} and a derived description).
+	 */
 	constructor(init: PageFetchErrorInit) {
 		super(init.message ?? defaultMessage(init), { cause: init.cause });
 		this.kind = init.kind;

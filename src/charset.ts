@@ -89,6 +89,9 @@ export function sniffMetaCharset(bytes: Uint8Array): string | undefined {
  *
  * @example
  * ```ts
+ * import { sniffCharset } from "@marianmeres/page-fetcher/adapters";
+ *
+ * const bytes = new TextEncoder().encode("<html>…</html>");
  * sniffCharset(bytes, { headerCharset: "windows-1250", mime: "text/html" });
  * // "windows-1250"
  * ```

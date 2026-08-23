@@ -188,7 +188,13 @@ export interface HttpErrorGuardOptions {
  *
  * @example
  * ```ts
- * const fetchFn = compose([httpErrorGuard(), createRetry()], adapter.fetch);
+ * import { compose, createRetry, httpErrorGuard } from "@marianmeres/page-fetcher";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
+ * const fetchFn = compose(
+ * 	[httpErrorGuard(), createRetry()],
+ * 	createHttpAdapter().fetch,
+ * );
  * ```
  */
 export function httpErrorGuard(options: HttpErrorGuardOptions = {}): FetchLayer {

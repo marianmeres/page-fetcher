@@ -159,8 +159,11 @@ const FUNCTION_SOURCE =
  *
  * @example
  * ```ts
- * toPageExpression("() => document.title === 'ready'"); // "(() => document.title === 'ready')()"
- * toPageExpression("document.title === 'ready'");       // unchanged
+ * import { toPageExpression } from "@marianmeres/page-fetcher/adapters";
+ *
+ * toPageExpression("() => document.title === 'ready'");
+ * // "(() => document.title === 'ready')()"
+ * toPageExpression("document.title === 'ready'"); // unchanged
  * ```
  */
 export function toPageExpression(fn: string): string {
@@ -230,7 +233,12 @@ export interface ApplyWaitOptions {
  *
  * @example
  * ```ts
- * const { nav, render } = await applyWait(page, url, "networkidle", {
+ * import { applyWait, DEFAULT_NETWORK_IDLE } from "@marianmeres/page-fetcher/adapters";
+ * import type { DriverPage } from "@marianmeres/page-fetcher/adapters";
+ *
+ * declare const page: DriverPage;
+ *
+ * const { nav, render } = await applyWait(page, "https://example.com/", "networkidle", {
  * 	navigationTimeout: 30_000,
  * 	networkidle: DEFAULT_NETWORK_IDLE,
  * });

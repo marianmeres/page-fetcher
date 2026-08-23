@@ -118,8 +118,11 @@ interface HostEntry {
  *
  * @example
  * ```ts
+ * import { createCircuitBreaker, createRetry } from "@marianmeres/page-fetcher";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
  * const fetchFn = createCircuitBreaker({ threshold: 3, cooldown: 10_000 })(
- * 	createRetry()(adapter.fetch),
+ * 	createRetry()(createHttpAdapter().fetch),
  * );
  * ```
  */

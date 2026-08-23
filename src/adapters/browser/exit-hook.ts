@@ -150,8 +150,12 @@ export function detectExitHookHost(): ExitHookHost | undefined {
  *
  * @example
  * ```ts
+ * import { registerExitHook } from "@marianmeres/page-fetcher/adapters";
+ *
+ * declare const browser: { close(): Promise<void> };
+ *
  * const unregister = registerExitHook(() => void browser.close().catch(() => {}));
- * // …later
+ * // …once the browser is torn down the ordinary way
  * unregister();
  * ```
  */

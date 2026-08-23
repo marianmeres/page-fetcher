@@ -184,11 +184,14 @@ function entryToResult(
  *
  * @example
  * ```ts
+ * import { createCacheLayer, createMemoryCache } from "@marianmeres/page-fetcher/cache";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
  * const fetchFn = createCacheLayer({
  * 	store: createMemoryCache(),
- * 	mode: "dev",          // serve any hit, ignore freshness
- * 	ttl: 3_600_000,       // ...younger than an hour
- * })(adapter.fetch);
+ * 	mode: "dev", // serve any hit, ignoring freshness...
+ * 	ttl: 3_600_000, // ...as long as it is younger than an hour
+ * })(createHttpAdapter().fetch);
  * ```
  */
 export function createCacheLayer(options: CacheLayerOptions): FetchLayer {

@@ -208,7 +208,7 @@ function raceAbort<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
  * Create the browser adapter.
  *
  * @example
- * ```ts
+ * ```ts ignore
  * import * as playwright from "playwright";
  * import { createBrowserAdapter, playwrightDriver } from "@marianmeres/page-fetcher/adapters";
  *
@@ -465,7 +465,12 @@ export function createBrowserAdapter(options: BrowserAdapterOptions): Adapter {
 			let onPageError: string | undefined;
 			if (hook) {
 				try {
-					hookExtra = (await hook(page.raw, req)) ?? undefined;
+					// `??` does not narrow a `void` union under tsc's strict mode, so
+					// widen the awaited value first
+					const returned: unknown = await hook(page.raw, req);
+					hookExtra = (returned ?? undefined) as
+						| Record<string, unknown>
+						| undefined;
 				} catch (e) {
 					onPageError = e instanceof Error ? e.message : String(e);
 					logger?.warn(`[${rid}] onPage hook threw: ${onPageError}`);

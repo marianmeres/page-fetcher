@@ -11,6 +11,7 @@
 		"test:watch": "deno test --watch --allow-net=127.0.0.1 --ignore=tests/browser tests/",
 		"test:browser": "BROWSER_TESTS=1 deno test -A tests/browser/",
 		"test:browser:puppeteer": "BROWSER_TESTS=1 BROWSER_DRIVER=puppeteer deno test -A tests/browser/",
+		"doc:lint": "deno doc --lint src/mod.ts src/adapters.ts src/cache.ts && deno check --doc src/",
 		"npm:build": "deno run -A scripts/build-npm.ts",
 		"npm:publish": "deno run -A scripts/build-npm.ts && cd ./.npm-dist && npm publish --access=public",
 		"release": "deno run -A jsr:@marianmeres/release",
@@ -19,6 +20,9 @@
 		"rpm": "deno task release minor -y && deno task publish"
 	},
 	"imports": {
+		"@marianmeres/page-fetcher": "./src/mod.ts",
+		"@marianmeres/page-fetcher/adapters": "./src/adapters.ts",
+		"@marianmeres/page-fetcher/cache": "./src/cache.ts",
 		"@marianmeres/clog": "jsr:@marianmeres/clog@^3.21.0",
 		"@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.16.0",
 		"@std/assert": "jsr:@std/assert@^1.0.19",

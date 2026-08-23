@@ -21,9 +21,17 @@ import type { FetchFn, FetchLayer } from "./types.ts";
  *
  * @example
  * ```ts
+ * import {
+ * 	compose,
+ * 	createCircuitBreaker,
+ * 	createRetry,
+ * 	timeoutGuard,
+ * } from "@marianmeres/page-fetcher";
+ * import { createHttpAdapter } from "@marianmeres/page-fetcher/adapters";
+ *
  * const fetchFn = compose(
  * 	[createCircuitBreaker(), createRetry({ attempts: 4 }), timeoutGuard()],
- * 	adapter.fetch,
+ * 	createHttpAdapter().fetch,
  * );
  * ```
  */
