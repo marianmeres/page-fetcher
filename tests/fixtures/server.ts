@@ -221,6 +221,83 @@ async function handle(req: Request, ctx: Ctx): Promise<Response> {
 			});
 		}
 
+		// A page that is only complete after its scripts have run, plus two
+		// subresources on token-carrying URLs — so the browser suite can prove both
+		// "the DOM was rendered" and "the blocked resource was never requested".
+		case path === "/spa": {
+			const asset = (name: string) => `${name}?token=${encodeURIComponent(token)}`;
+			return new Response(
+				`<!doctype html><html><head><title>loading…</title>` +
+					`<link rel="stylesheet" href="/spa.css${
+						token ? `?token=${encodeURIComponent(token)}` : ""
+					}">` +
+					`</head><body><div id="app">pre-hydration</div>` +
+					`<img id="pixel" alt="" src="/${asset("spa.png")}">` +
+					`<script>setTimeout(function () {` +
+					`document.getElementById("app").textContent = "hydrated";` +
+					`document.title = "hydrated";` +
+					`}, ${Number(q.get("ms") ?? 50)});</script>` +
+					`</body></html>`,
+				{ headers: { "content-type": HTML } },
+			);
+		}
+
+		case path === "/spa.css":
+			return new Response("#app { color: rebeccapurple }", {
+				headers: { "content-type": "text/css" },
+			});
+
+		case path === "/spa.png":
+			// a 1x1 transparent gif is enough; the browser only has to request it
+			return new Response(
+				Uint8Array.from([
+					0x47,
+					0x49,
+					0x46,
+					0x38,
+					0x39,
+					0x61,
+					0x01,
+					0x00,
+					0x01,
+					0x00,
+					0x80,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x21,
+					0xf9,
+					0x04,
+					0x01,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x2c,
+					0x00,
+					0x00,
+					0x00,
+					0x00,
+					0x01,
+					0x00,
+					0x01,
+					0x00,
+					0x00,
+					0x02,
+					0x02,
+					0x44,
+					0x01,
+					0x00,
+					0x3b,
+				]) as BodyInit,
+				{ headers: { "content-type": "image/gif" } },
+			);
+
 		case path === "/json":
 			return json({ hello: "world" });
 

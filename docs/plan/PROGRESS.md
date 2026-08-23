@@ -54,7 +54,7 @@ browser subsystem, and the cache — see the backlog.
 | 8    | Browser driver: `src/adapters/browser/driver.ts` (structural `BrowserDriver`), `drivers/playwright.ts` + `drivers/puppeteer.ts` bridges, `tests/fixtures/fake-driver.ts` (scriptable in-memory driver)                                                                                  | [04](./04-browser-adapter.md) #1/#2                                                         | ✅     |
 | 9    | Browser adapter (single context): `browser-adapter.ts` orchestration, `wait.ts` (soft-hybrid networkidle), `blocking.ts` (on by default), result mapping (`finalUrl`/`extra.pageUrl`, serialized-DOM `bytes()`), `onPage` + bounded capture + unit tests vs fake driver                 | [04](./04-browser-adapter.md) #4/#5/#6/#8                                                   | ✅     |
 | 10   | Browser pool + lifecycle: `pool.ts` (epochs, recycling, waiter queue, "never wedge" invariant), `exit-hook.ts` (feature-detected, re-raise protocol) + `tests/browser-pool.test.ts` vs fake driver                                                                                      | [04](./04-browser-adapter.md) #3/#7                                                         | ✅     |
-| 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ⬜     |
+| 11   | Flagged real-browser suite: `tests/browser/` (double gate: `--ignore` + `BROWSER_TESTS=1`), adapter smoke vs fixture server, ps-scan leak test                                                                                                                                          | [06](./06-testing-docs-tooling.md) #5; [04](./04-browser-adapter.md) #7                     | ✅     |
 | 12   | Cache layer: `src/cache/{types,key,memory,layer,serialize}.ts` (versioned `CachedEntry`, GET-only keys, dev/conditional state machine, 304 freshen, synthesis matrix, LRU memory store) + `tests/cache.test.ts`; wire `cache` option into `createFetcher`                               | [05](./05-cache-layer.md) #1–#8                                                             | ⬜     |
 | 13   | JSDoc pass: `@module` docs on all three entry points, `@example` on the factories + `PageFetchError`, explicit return types (JSR no-slow-types), `deno doc --lint` gate                                                                                                                 | [06](./06-testing-docs-tooling.md) #11                                                      | ⬜     |
 | 14   | Agent docs: `AGENTS.md` (~1k tokens), `docs/architecture.md`, `docs/conventions.md`, `docs/tasks.md`, `CLAUDE.md` redirect (from the corrected template path)                                                                                                                           | [06](./06-testing-docs-tooling.md) #6                                                       | ⬜     |
@@ -394,6 +394,50 @@ browser subsystem, and the cache — see the backlog.
   The "never wedge" invariant is now four named tests — timeout, signal, dispose, failed
   relaunch — plus a fifth for the mid-fetch crash, all against the fake driver in the
   default browserless run.
+
+- **2026-08-23 (backlog task 11 — flagged real-browser suite)** — `tests/browser/`
+  behind the double gate doc [06](./06-testing-docs-tooling.md) #5 specifies: the
+  directory is `--ignore`d by `deno task test` (so its modules are neither run nor
+  imported), and each case also checks the `BROWSER_TESTS` **permission** before reading
+  the variable, so a permissionless run degrades to "skipped" instead of failing at
+  collection. The driver specifier stays out of `deno.json` imports and is imported
+  dynamically inside the test body. The open question is answered:
+
+  47. **Both bridges are the first real drivers, not one.** `BROWSER_DRIVER=puppeteer`
+      switches the suite over (`deno task test:browser:puppeteer`); Playwright/chromium
+      is the default and the engine the README will promise. Ten cases pass against each
+      — verified on this machine, 6 s for Playwright and 19 s for Puppeteer. Testing both
+      is what makes the structural driver interface's claim ("two bridges, one adapter")
+      an assertion rather than a hope.
+  48. **The leak test asserts the scan works before asserting the leak is gone.** It
+      first requires at least one browser descendant while the adapter is live —
+      otherwise a broken `ps` parse, a renamed executable or a driver that never
+      launched would make the post-dispose assertion pass for entirely the wrong reason.
+      It scans transitive children of `Deno.pid` for browser-looking commands rather than
+      a pid, because Playwright's `Browser` exposes no process; skipped off darwin/linux.
+  49. **Three fixture routes added** (`/spa`, `/spa.css`, `/spa.png`) — a page that is
+      only complete after its scripts run, plus two token-carrying subresources. That one
+      page is what lets the suite prove the two claims no HTTP fixture can: the returned
+      DOM is post-hydration, and a blocked resource was **never requested** (asserted via
+      the fixture's per-token hit counters, so blocking is verified end to end through a
+      real browser rather than through our own filter's bookkeeping).
+
+  **Bug found by the real suite, fixed here:** a `{ fn }` wait resolved instantly.
+  Both drivers evaluate a **string** `waitForFunction` argument as an _expression_, so
+  the documented "self-contained function source" (`"() => done"`) evaluates to a
+  function **object** — truthy — and the wait returned the un-waited-for page silently.
+  `toPageExpression()` in `wait.ts` now wraps a function-looking source in a call and
+  passes anything else through unchanged; `DriverPage.waitForFunction`'s contract is
+  restated as "an expression", and both forms are pinned by a unit test plus a real-
+  browser case whose assertions are no longer satisfiable by the serialized script tag.
+  This is exactly the class of defect the flagged suite exists to catch — the fake driver
+  cannot see it, because it never evaluates anything.
+
+  Noted for task 17: `tests/browser/` **is** in the `deno publish` tarball (the dry run
+  passes — JSR does not type-check files outside the exported graph, so the `npm:` dynamic
+  imports are never resolved), which strengthens the case for a `publish.exclude` on
+  `tests/`. A plain `deno check` of those files does download Playwright and Puppeteer;
+  that is fine as an explicit act, and the default test task never touches them.
 
 ## How to resume (for a fresh conversation)
 

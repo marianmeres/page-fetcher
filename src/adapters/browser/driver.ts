@@ -81,11 +81,14 @@ export interface DriverPage {
 	/** Wait for a selector to appear. */
 	waitForSelector(selector: string, opts: { timeout: number }): Promise<void>;
 	/**
-	 * Wait until a predicate returns truthy in the page.
+	 * Wait until a JavaScript **expression** evaluates truthy in the page.
 	 *
-	 * The predicate is a **self-contained function source string** — the two drivers
-	 * order the `(fn, args, options)` parameters differently, and a string sidesteps
-	 * the difference completely.
+	 * A string rather than a function, because the two drivers order their
+	 * `(fn, args, options)` parameters differently and a string sidesteps the
+	 * difference completely. Note that both of them evaluate such a string as an
+	 * *expression*, so a bare `"() => done"` would evaluate to a truthy function object
+	 * and resolve immediately — the adapter normalizes a function source into a call
+	 * before it gets here, and a custom driver receives an expression.
 	 */
 	waitForFunction(fn: string, opts: { timeout: number }): Promise<void>;
 	/** Serialized DOM, after scripts have run. */

@@ -17,7 +17,7 @@ import {
 	createBrowserAdapter,
 	DEFAULT_CAPTURE_LIMIT,
 } from "../src/adapters/browser/browser-adapter.ts";
-import { normalizeWait } from "../src/adapters/browser/wait.ts";
+import { normalizeWait, toPageExpression } from "../src/adapters/browser/wait.ts";
 import { PageFetchError } from "../src/errors.ts";
 import { timeoutGuard } from "../src/guards.ts";
 import type { Adapter, FetchResult } from "../src/types.ts";
@@ -125,6 +125,33 @@ Deno.test("normalizeWait accepts the four shapes and rejects the rest", () => {
 
 	for (const bad of ["networkidle0", "", {}, { selector: "" }, { fn: 1 }, null, 42]) {
 		assertThrows(() => normalizeWait(bad), TypeError, "Invalid wait strategy");
+	}
+});
+
+Deno.test("toPageExpression turns a function source into a call", () => {
+	// both drivers evaluate the string as an expression, so an un-wrapped function
+	// source is a truthy object and the wait resolves instantly — the bug this exists
+	// to prevent, found by the real-browser suite
+	for (
+		const fn of [
+			"() => document.title === 'x'",
+			"(a) => a",
+			"x => x.ready",
+			"function () { return done }",
+			"async () => await ready()",
+		]
+	) {
+		assertEquals(toPageExpression(fn), `(${fn})()`);
+	}
+	// a plain expression is already what the driver wants
+	for (
+		const expression of [
+			"document.title === 'x'",
+			"!!document.querySelector('#app')",
+			"window.__ready",
+		]
+	) {
+		assertEquals(toPageExpression(expression), expression);
 	}
 });
 

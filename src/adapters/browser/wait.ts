@@ -27,9 +27,11 @@ import type { DriverNavResult, DriverPage } from "./driver.ts";
  * - `"networkidle"` — load, then a bounded wait for network quiet (see
  *   {@linkcode NetworkIdleOptions}). The default.
  * - `{ selector }` — DOM-ready, then wait for that selector to appear.
- * - `{ fn }` — DOM-ready, then wait until the function source evaluates truthy in the
- *   page. A **string**, not a function: it has to serialize into the page anyway, and
- *   the two drivers order their `waitForFunction` arguments differently.
+ * - `{ fn }` — DOM-ready, then wait until the JavaScript source evaluates truthy in
+ *   the page. A **string**, not a function: it has to serialize into the page anyway,
+ *   and the two drivers order their `waitForFunction` arguments differently. Both an
+ *   expression (`"document.title === 'ready'"`) and a function source
+ *   (`"() => document.title === 'ready'"`) work — see {@linkcode toPageExpression}.
  */
 export type WaitStrategy =
 	| "load"
@@ -140,6 +142,29 @@ export function browserErrorFrom(
 		message: ctx.phase ? `Failed ${ctx.phase}: ${detail}` : detail,
 		cause,
 	});
+}
+
+/** Sources that are a function rather than a value: arrow, named or anonymous. */
+const FUNCTION_SOURCE =
+	/^\s*(async\s+)?(function[\s(]|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/;
+
+/**
+ * Turn a wait-function source into an expression the page can evaluate.
+ *
+ * Both drivers evaluate a **string** `waitForFunction` argument as an expression, so
+ * `"() => done"` evaluates to a function *object* — which is truthy, so the wait
+ * resolves instantly and silently returns the un-waited-for page. That trap is the
+ * whole reason this exists: a source that looks like a function is wrapped in a call,
+ * anything else is passed through as the expression it already is.
+ *
+ * @example
+ * ```ts
+ * toPageExpression("() => document.title === 'ready'"); // "(() => document.title === 'ready')()"
+ * toPageExpression("document.title === 'ready'");       // unchanged
+ * ```
+ */
+export function toPageExpression(fn: string): string {
+	return FUNCTION_SOURCE.test(fn) ? `(${fn})()` : fn;
 }
 
 /** Reject a strategy the driver could not act on, at the moment it is configured. */
@@ -271,7 +296,7 @@ export async function applyWait(
 		}
 	} else if (typeof strategy === "object" && "fn" in strategy) {
 		try {
-			await page.waitForFunction(strategy.fn, {
+			await page.waitForFunction(toPageExpression(strategy.fn), {
 				timeout: strategy.timeout ?? navigationTimeout,
 			});
 		} catch (cause) {
