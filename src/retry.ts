@@ -93,8 +93,14 @@ export function parseRetryAfter(
 	return Math.max(0, at - now);
 }
 
-/** Backoff for the attempt that just failed, before jitter and capping. */
-function rawBackoff(
+/**
+ * Backoff for the attempt that just failed, before jitter and capping.
+ *
+ * Exported for tooling that needs to *predict* a schedule (see `mcp.ts`) rather than
+ * run one. Not re-exported from the `.` barrel: it is internal API, reachable only by
+ * deep import from inside this package.
+ */
+export function rawBackoff(
 	strategy: BackoffStrategy,
 	attempt: number,
 	baseDelay: number,

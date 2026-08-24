@@ -7,6 +7,7 @@
     "jsr:@marianmeres/clog@^3.21.0": "3.21.0",
     "jsr:@marianmeres/deno-build@*": "2.2.0",
     "jsr:@marianmeres/design-tokens@^1.17.0": "1.17.0",
+    "jsr:@marianmeres/mcp-server@*": "1.3.2",
     "jsr:@marianmeres/npmbuild@^1.16.0": "1.16.0",
     "jsr:@marianmeres/release@*": "2.0.0",
     "jsr:@marianmeres/vanilla@^1.8.0": "1.8.0",
@@ -35,7 +36,9 @@
     "jsr:@std/testing@^1.0.18": "1.0.18",
     "npm:esbuild@0.28": "0.28.2",
     "npm:playwright@1": "1.62.1",
-    "npm:puppeteer@24": "24.43.1"
+    "npm:puppeteer@24": "24.43.1",
+    "npm:zod@*": "3.25.76",
+    "npm:zod@^3.25.76": "3.25.76"
   },
   "jsr": {
     "@deno/cache-dir@0.13.2": {
@@ -78,6 +81,12 @@
     },
     "@marianmeres/design-tokens@1.17.0": {
       "integrity": "33d50bfaeafb72ea85eaa2740314c8bc31eef3c799d947afbcd50cc581a00d95"
+    },
+    "@marianmeres/mcp-server@1.3.2": {
+      "integrity": "44fb9c465ce57ec1762ca468463ce279d7c93edbfdc09255b4cb352aa0f59ebd",
+      "dependencies": [
+        "npm:zod@^3.25.76"
+      ]
     },
     "@marianmeres/npmbuild@1.16.0": {
       "integrity": "5631b65d284472d1325ecf829dce22e2df166fa3b754cd3f005c8eccd05ee8f0",

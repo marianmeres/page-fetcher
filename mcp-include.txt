@@ -1,0 +1,6 @@
+Single-page fetch transport for Deno/Node that returns one normalized result whether the 
+bytes came from a headless browser (injected Playwright/Puppeteer driver) or a plain 
+fetch. Composable `(next) => FetchFn` layers for retry with backoff, per-host circuit 
+breaker, timeout/deadline guards, and an optional response cache; one `PageFetchError` 
+discriminated by `kind`, non-2xx is data (not a throw). Transport only — no links, 
+recursion or crawling.

@@ -15,10 +15,11 @@
 		]
 	},
 	"tasks": {
-		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser tests/",
-		"test:watch": "deno test --watch --allow-net=127.0.0.1 --ignore=tests/browser tests/",
+		"test": "deno test --allow-net=127.0.0.1 --ignore=tests/browser,tests/mcp tests/",
+		"test:watch": "deno test --watch --allow-net=127.0.0.1 --ignore=tests/browser,tests/mcp tests/",
 		"test:browser": "BROWSER_TESTS=1 deno test -A tests/browser/",
 		"test:browser:puppeteer": "BROWSER_TESTS=1 BROWSER_DRIVER=puppeteer deno test -A tests/browser/",
+		"test:mcp": "deno test -A tests/mcp/",
 		"doc:lint": "deno doc --lint src/mod.ts src/adapters.ts src/cache.ts && deno check --doc src/",
 		"example": "deno run -A example/server.ts",
 		"example:version": "deno run -A scripts/gen-example-version.ts",
@@ -48,6 +49,11 @@
 	"exclude": [
 		"example/dist"
 	],
+	"lint": {
+		"exclude": [
+			"mcp.ts"
+		]
+	},
 	"fmt": {
 		"useTabs": true,
 		"lineWidth": 90,

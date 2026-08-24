@@ -14,7 +14,10 @@ recursion, sites or crawling.
 - **Docs gate**: `deno task doc:lint` — `deno doc --lint` plus `deno check --doc`, which
   type-checks the code inside every `@example`.
 - **Build**: `deno task npm:build` (runs `tsc`, which is stricter than `deno check`).
-- **Format/lint**: `deno fmt` / `deno lint`. Tabs, `lineWidth: 90`.
+- **Format/lint**: `deno fmt` / `deno lint`. Tabs, `lineWidth: 90`. `mcp.ts` is
+  lint-excluded (the MCP convention requires inline `npm:` / `jsr:` specifiers).
+- **MCP tools**: `deno task test:mcp` — also gated out of `deno task test`, because
+  `mcp.ts` pulls `npm:zod` and the default suite stays hermetic.
 - **Example app**: `deno task example` (a local Deno server at :8000 — the demo pages and
   the fetch endpoint), `deno task example:build` after editing `example/src/`.
 
@@ -30,10 +33,13 @@ src/cache/        — internals: types, key, memory, layer, serialize
 tests/            — one file per module; unit files must not import the fixture server
 tests/fixtures/   — server.ts (dual-origin local HTTP), fake-driver.ts, bytes.ts
 tests/browser/    — flagged real-browser suite (double gate: --ignore + BROWSER_TESTS=1)
+tests/mcp/        — mcp.ts suite (--ignore'd out of the default run; deno task test:mcp)
 example/          — the interactive example: server.ts (static + /demo/* + /api/fetch),
                     index.html (templates + token-driven CSS), src/main.ts (vanilla app),
                     dist/bundle.js (committed, built by deno-build)
 scripts/          — build-npm.ts, gen-example-{version,theme}.ts
+mcp.ts            — MCP tools (setup generator, retry-schedule preview, content-type check)
+mcp-include.txt   — the marker + blurb the local @marianmeres/mcp-server discovers by
 docs/_archive/plan/ — the original implementation plan and its decisions log
 ```
 
@@ -70,6 +76,9 @@ Barrels are flat and stay in sync with `deno.json` `exports` **and**
 - [ ] `deno lint && deno fmt && deno task doc:lint`.
 - [ ] `deno publish --dry-run` before anything that changes the public surface.
 - [ ] Update `tests/mod.test.ts` when adding or removing a barrel export.
+- [ ] `deno task test:mcp` when touching `mcp.ts`, `src/fetcher.ts`'s layer order,
+      `src/retry.ts`'s backoff, or `src/content-type.ts` — the MCP tools mirror all three
+      and a test pins the layer order to `createFetcher`.
 
 ## Documentation Index
 
